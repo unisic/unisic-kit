@@ -79,6 +79,26 @@ engine.addImageProvider("icon", new IconImageProvider(nullptr));
 `ThemeController` and `Theme` register declaratively into the `Unisic.Kit`
 module — do not register them imperatively.
 
+### Cursor-metadata capture
+
+The capture stack can record the pointer *out of band* instead of burning it
+into the frames, so a post-production consumer (Unisic Studio) can track and
+re-render it. It is fully opt-in and default-off. Start the portal session with
+`ScreenCastSession::start(ScreenCastSession::CursorMode::Metadata, …)`; the kit
+only requests metadata when the portal advertises it in `AvailableCursorModes`,
+otherwise it transparently falls back to `Embedded`, so read
+`effectiveCursorMode()` after `ready()` to learn what was negotiated. When it is
+`Metadata`, pass `wantCursorMeta=true` to `PipeWireGrabber::start(fd, node, fps,
+true)`. The grabber then attaches `SPA_META_Header` + `SPA_META_Cursor` to the
+buffers and, per frame, appends a `CursorSample` (`tMonoNs`, stream-pixel `x/y`,
+`visible`, `shapeId`) to an internal bounded buffer you drain with
+`takeCursorSamples()`; each distinct cursor bitmap is emitted once as
+`cursorShapeChanged(int id, QImage image, QPoint hotspot)` (emitted off the
+PipeWire thread — connect it queued/auto). `latestFrame()` takes an optional
+`qint64 *ptsNs` out-param stamped from the same `CLOCK_MONOTONIC` clock as the
+samples, so frames and cursor motion map onto one timeline. Requires the
+optional `pipewire-devel` build (`HAVE_PIPEWIRE`).
+
 ## Provenance
 
 This repository was extracted from the Unisic project. See

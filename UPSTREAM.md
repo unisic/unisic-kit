@@ -73,6 +73,18 @@ syncing a file from upstream, re-apply its note below.
 | `src/SettingMacro.h` | `unisic:src/Settings.h` | Just the `U_SETTING` macro block (getter / early-return setter / debounce-timer start / NOTIFY emit), byte-identical, plus include guard and the `<QSettings>`/`<QTimer>` includes the macro operates on. The `Settings` class itself is NOT copied. |
 | `src/media/FfmpegUtil.h`, `src/media/FfmpegUtil.cpp` | `unisic:src/record/GifRecorder.cpp` | The ffmpeg encoder probe (thread-safe magic-static cache + `encoderUsable`/`hardwareEncoderAvailable`), the GIF palettegen/paletteuse filter builders, and the non-blocking `stopProcess()` QProcess escalation. Lifted into a free-function `FfmpegUtil` namespace (no `GifRecorder` members); `stopProcess` broadens its disconnect from `p→this` to all of `p`'s connections since there is no owning object. No recording logic copied. |
 
+### Feature additions (kit-side, ahead of upstream)
+
+Additive, default-off changes authored in the kit for Unisic Studio M2
+(PipeWire cursor-metadata capture). Existing upstream call sites compile and
+behave identically when the new options are not requested — when syncing these
+files from upstream, re-apply the additions on top rather than reverting them.
+
+| File | What was added |
+| --- | --- |
+| `src/capture/ScreenCastSession.h/.cpp` | `enum class CursorMode { Hidden=1, Embedded=2, Metadata=4 }`; a `start(CursorMode, …)` overload (the existing `start(bool includeCursor, …)` now delegates: `true`→Embedded, `false`→Hidden); `AvailableCursorModes` portal negotiation (Metadata requested only when advertised, else falls back to Embedded — cached like the `version` probe, successes only); `effectiveCursorMode()` getter the consumer reads after `ready()`. The blocking `screenCastPortalVersion()` was refactored to share one `screenCastPortalProperty()` Properties.Get helper with the new cursor-modes probe. |
+| `src/record/PipeWireGrabber.h/.cpp` | `start(…, bool wantCursorMeta=false)`; announces `SPA_PARAM_Meta` (Header + Cursor, RANGE-sized bitmap) in the Format handler; parses `spa_meta_header` pts + `spa_meta_cursor` in `on_process`; `cursorShapeChanged(int,QImage,QPoint)` signal (once per new shape, bitmap→QImage cache owned by the PipeWire thread); `CursorSample` struct + `takeCursorSamples()` drain (mutex-guarded, bounded ring, drop-oldest); `latestFrame()` gained an optional `qint64 *ptsNs` out-param stamped from the same CLOCK_MONOTONIC pts source as the samples. Also cast the `SPA_FRACTION(cappedFps, …)` args to `uint32_t` to clear a pre-existing `-Wnarrowing` warning. All new code is under the existing `HAVE_PIPEWIRE` CMake gate. |
+
 ### Authored for the kit (no upstream origin)
 
 - `CMakeLists.txt` — static `unisic-kit` library + `Unisic.Kit` QML module.

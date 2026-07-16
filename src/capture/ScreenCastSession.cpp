@@ -21,12 +21,15 @@ static const auto SCREENCAST_IFACE = QStringLiteral("org.freedesktop.portal.Scre
 
 ScreenCastSession::ScreenCastSession(QObject *parent) : QObject(parent) {}
 
-static uint screenCastPortalVersion()
+// Blocking Properties.Get on the ScreenCast interface. Both callers below cache
+// only a *successful* answer (see caveat at the call sites): a transient failure
+// (0) must not permanently disable a feature for the whole process lifetime.
+static uint screenCastPortalProperty(const QString &name)
 {
     QDBusMessage msg = QDBusMessage::createMethodCall(
         PORTAL_SERVICE, PORTAL_PATH,
         QStringLiteral("org.freedesktop.DBus.Properties"), QStringLiteral("Get"));
-    msg << SCREENCAST_IFACE << QStringLiteral("version");
+    msg << SCREENCAST_IFACE << name;
     const QDBusMessage reply = QDBusConnection::sessionBus().call(msg, QDBus::Block, 1000);
     if (reply.type() == QDBusMessage::ErrorMessage || reply.arguments().isEmpty())
         return 0;
@@ -34,6 +37,19 @@ static uint screenCastPortalVersion()
     if (value.canConvert<QDBusVariant>())
         return value.value<QDBusVariant>().variant().toUInt();
     return value.toUInt();
+}
+
+static uint screenCastPortalVersion()
+{
+    return screenCastPortalProperty(QStringLiteral("version"));
+}
+
+// Bitmask of cursor_mode values the portal supports (HIDDEN=1, EMBEDDED=2,
+// METADATA=4). Added in ScreenCast portal version 2; older portals return 0,
+// in which case we assume the two original modes (Hidden/Embedded) work.
+static uint screenCastAvailableCursorModes()
+{
+    return screenCastPortalProperty(QStringLiteral("AvailableCursorModes"));
 }
 
 ScreenCastSession::~ScreenCastSession()
@@ -50,12 +66,19 @@ ScreenCastSession::~ScreenCastSession()
 
 void ScreenCastSession::start(bool includeCursor, uint sourceTypes, const QString &restoreToken)
 {
-    m_sourceTypes = sourceTypes ? sourceTypes : 1;
-    m_restoreToken = restoreToken;
-    createSession(includeCursor);
+    // Back-compat overload: cursor either composited into the frames or hidden,
+    // never per-buffer metadata. Delegates so both paths share one flow.
+    start(includeCursor ? CursorMode::Embedded : CursorMode::Hidden, sourceTypes, restoreToken);
 }
 
-void ScreenCastSession::createSession(bool includeCursor)
+void ScreenCastSession::start(CursorMode cursorMode, uint sourceTypes, const QString &restoreToken)
+{
+    m_sourceTypes = sourceTypes ? sourceTypes : 1;
+    m_restoreToken = restoreToken;
+    createSession(cursorMode);
+}
+
+void ScreenCastSession::createSession(CursorMode cursorMode)
 {
     const QString token = PortalRequest::nextToken();
     // Unique per session, not just per process: two sessions in one process
@@ -68,7 +91,7 @@ void ScreenCastSession::createSession(bool includeCursor)
         {QStringLiteral("session_handle_token"),
          QStringLiteral("unisic_%1_%2").arg(QCoreApplication::applicationPid()).arg(++s_sessionCounter)},
     };
-    PortalRequest::send(msg, token, [this, includeCursor](uint code, const QVariantMap &results) {
+    PortalRequest::send(msg, token, [this, cursorMode](uint code, const QVariantMap &results) {
         if (code != 0) {
             const QString detail = results.value(QStringLiteral("error")).toString();
             emit failed(QStringLiteral("ScreenCast CreateSession failed (code %1)").arg(code)
@@ -89,20 +112,37 @@ void ScreenCastSession::createSession(bool includeCursor)
             PORTAL_SERVICE, m_sessionHandle,
             QStringLiteral("org.freedesktop.portal.Session"), QStringLiteral("Closed"),
             this, SIGNAL(sessionClosed()));
-        selectSources(includeCursor);
+        selectSources(cursorMode);
     }, this);
 }
 
-void ScreenCastSession::selectSources(bool includeCursor)
+void ScreenCastSession::selectSources(CursorMode cursorMode)
 {
     const QString token = PortalRequest::nextToken();
     QDBusMessage msg = QDBusMessage::createMethodCall(PORTAL_SERVICE, PORTAL_PATH, SCREENCAST_IFACE,
                                                        QStringLiteral("SelectSources"));
+
+    // Resolve the cursor_mode we actually request. Hidden/Embedded predate the
+    // AvailableCursorModes property, so they need no probe. Metadata is newer:
+    // request it only when the portal advertises it, else composite the cursor
+    // (Embedded) so an old portal still starts the cast. Cache only a
+    // successful probe (a transient 0 must not disable metadata for the whole
+    // process); a failed/absent read leaves Embedded as the safe fallback.
+    CursorMode effective = cursorMode;
+    if (cursorMode == CursorMode::Metadata) {
+        static uint availableCursorModes = 0;
+        if (availableCursorModes == 0)
+            availableCursorModes = screenCastAvailableCursorModes();
+        if ((availableCursorModes & uint(CursorMode::Metadata)) == 0)
+            effective = CursorMode::Embedded;
+    }
+    m_effectiveCursorMode = effective;
+
     QVariantMap options{
         {QStringLiteral("handle_token"), token},
         {QStringLiteral("types"), m_sourceTypes},                   // MONITOR / WINDOW
         {QStringLiteral("multiple"), false},
-        {QStringLiteral("cursor_mode"), uint(includeCursor ? 2 : 1)}, // EMBEDDED : HIDDEN
+        {QStringLiteral("cursor_mode"), uint(effective)},           // HIDDEN/EMBEDDED/METADATA
     };
 
     // Blocking Properties.Get — cache it (GUI thread), but only a successful
