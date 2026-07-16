@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Controls
-import Unisic
+import Unisic.Kit
 
 // In-app themed confirmation dialog — replaces QtQuick.Dialogs' MessageDialog,
 // which opens a separate Qt-styled window that clashes with the design system.

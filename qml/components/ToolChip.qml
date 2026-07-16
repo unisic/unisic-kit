@@ -1,5 +1,5 @@
 import QtQuick
-import Unisic
+import Unisic.Kit
 
 // Tool selector chip for editor/overlay toolbars.
 Rectangle {

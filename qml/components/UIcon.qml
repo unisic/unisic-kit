@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Window
-import Unisic
+import Unisic.Kit
 
 // Renders a themed icon via the C++ image://icon provider. The tint color and
 // the theme revision are part of the URL so the image re-fetches when either

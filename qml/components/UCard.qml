@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Effects
-import Unisic
+import Unisic.Kit
 
 // Soft rounded surface card with depth: vertical gradient, top hairline
 // highlight and a drop shadow — the basic SwiftUI-like grouping element.

@@ -51,6 +51,34 @@ standalone build/use happens in later commits on top of this bootstrap.
 | `qml/components/VideoPreview.qml` | `qml/components/VideoPreview.qml` |
 | `resources/icons/sym/*.svg` (66 files) | `resources/icons/sym/*.svg` |
 
+## Local modifications
+
+The bootstrap copied the files above verbatim. The following adaptations were
+then applied on top to make the kit a self-contained standalone library — when
+syncing a file from upstream, re-apply its note below.
+
+### Adapted copies
+
+| File | What changed / why |
+| --- | --- |
+| `src/ConfigPath.h` | Rewritten from the hardcoded Unisic path (dev-build/legacy/sounds helpers) into a parameterized `UnisicKit` namespace: `setConfigName()` names the config once at startup, `filePath()`/`configDir()` derive from it. Defaults to `"unisic"`, so the historical path is unchanged. |
+| `src/theme/ThemeController.h` | `UnisicConfig::filePath()` → `UnisicKit::filePath()` to match the reworked `ConfigPath.h`. Only line changed. |
+| `qml/Theme.qml`, `qml/components/*.qml` (20 files) | `import Unisic` → `import Unisic.Kit` (the kit's QML module URI). |
+| `qml/components/USwitch.qml`, `qml/components/VideoPreview.qml` | Genericized illustrative comments that named the app facade (`App.settings.x`, `App.capVideoPlayback`); no functional/binding change — both components were already self-contained via their own properties/signals. |
+
+### Extracted (NOT verbatim copies — lifted out of larger upstream files)
+
+| File | Extracted from | What / why |
+| --- | --- | --- |
+| `src/SettingMacro.h` | `unisic:src/Settings.h` | Just the `U_SETTING` macro block (getter / early-return setter / debounce-timer start / NOTIFY emit), byte-identical, plus include guard and the `<QSettings>`/`<QTimer>` includes the macro operates on. The `Settings` class itself is NOT copied. |
+| `src/media/FfmpegUtil.h`, `src/media/FfmpegUtil.cpp` | `unisic:src/record/GifRecorder.cpp` | The ffmpeg encoder probe (thread-safe magic-static cache + `encoderUsable`/`hardwareEncoderAvailable`), the GIF palettegen/paletteuse filter builders, and the non-blocking `stopProcess()` QProcess escalation. Lifted into a free-function `FfmpegUtil` namespace (no `GifRecorder` members); `stopProcess` broadens its disconnect from `p→this` to all of `p`'s connections since there is no owning object. No recording logic copied. |
+
+### Authored for the kit (no upstream origin)
+
+- `CMakeLists.txt` — static `unisic-kit` library + `Unisic.Kit` QML module.
+  Modelled on Unisic's `CMakeLists.txt` (optional-PipeWire guard, `qmlmod/`
+  output dir, symbolic-icon resource prefix) but reduced to the kit's sources.
+
 ## Diffing / syncing against upstream
 
 To compare `unisic-kit` against the current state of a file in `unisic`:

@@ -1,5 +1,5 @@
 import QtQuick
-import Unisic
+import Unisic.Kit
 
 // A seamless split pill: two icon halves sharing one rounded background with a
 // center divider, so a pair of RELATED actions reads as one compact control.

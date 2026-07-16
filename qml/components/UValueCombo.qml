@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Controls as C
-import Unisic
+import Unisic.Kit
 
 // Numeric dropdown: a preset list plus a free-entry "Custom" field at the
 // bottom. A typed value applies immediately but is NEVER added to the preset

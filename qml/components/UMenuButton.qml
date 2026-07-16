@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Controls as C
-import Unisic
+import Unisic.Kit
 
 // A UButton-shaped action menu: the trigger is a tonal pill; its list is a
 // Popup parented to the window Overlay (never clipped by the bar), preferring

@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Controls as C
-import Unisic
+import Unisic.Kit
 
 // Hover tooltip rendered as a PLAIN visual Item on the window's overlay layer.
 // It is deliberately NOT a Popup and carries no input handling: a Popup tooltip

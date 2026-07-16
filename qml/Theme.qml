@@ -1,6 +1,6 @@
 pragma Singleton
 import QtQuick
-import Unisic
+import Unisic.Kit
 
 // Themeable design tokens. Every consumer keeps using Theme.primary,
 // Theme.surface, Theme.textPrimary … unchanged; the values are now computed

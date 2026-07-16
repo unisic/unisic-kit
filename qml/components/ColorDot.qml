@@ -1,5 +1,5 @@
 import QtQuick
-import Unisic
+import Unisic.Kit
 
 Rectangle {
     id: root

@@ -1,10 +1,10 @@
 import QtQuick
 import QtMultimedia
-import Unisic
+import Unisic.Kit
 
 // QtMultimedia video surface for the trim editor. Kept in its own file so the
-// `import QtMultimedia` is only ever evaluated when App.capVideoPlayback is true
-// and a Loader instantiates it — on a box without qt6-qtmultimedia the trim
+// `import QtMultimedia` is only ever evaluated when the consumer enables video
+// playback and a Loader instantiates it — on a box without qt6-qtmultimedia the trim
 // window falls back to the slider-only UI instead of erroring on the import.
 Item {
     id: root

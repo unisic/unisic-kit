@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Effects
-import Unisic
+import Unisic.Kit
 
 // SwiftUI-style button: pill/rounded, springy press scale, gradient fill,
 // soft shadow on prominent variants.

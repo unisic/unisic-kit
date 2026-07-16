@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Controls as C
-import Unisic
+import Unisic.Kit
 
 // Dropdown whose list is a Popup parented to the window Overlay, so it renders
 // above every card/Flickable and is never clipped by clip:true.

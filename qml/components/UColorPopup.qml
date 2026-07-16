@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Controls
-import Unisic
+import Unisic.Kit
 
 // In-scene HSV colour picker. QtQuick.Dialogs' ColorDialog is a separate
 // top-level Window — under the region overlay's layer-shell surface (which

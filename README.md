@@ -26,6 +26,27 @@ need in common, so they don't drift apart:
 
 GPLv3 — see [LICENSE](LICENSE).
 
+## Building
+
+Requires **C++20**, **Qt 6.5+**, and **CMake** (Ninja recommended).
+
+Build dependencies (Fedora package names; use your distro's equivalents):
+
+- `qt6-qtbase-devel` — Core, Gui, DBus
+- `qt6-qtdeclarative-devel` — Quick, Qml, the QML module tooling
+- `qt6-qtsvg-devel` — SVG image format plugin (renders the bundled symbolic icons)
+- `pipewire-devel` *(optional)* — enables `PipeWireGrabber` screen-frame capture.
+  Without it the kit still builds; only `PipeWireGrabber` is dropped and a
+  warning is printed at configure time.
+
+```sh
+cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build build
+```
+
+This produces the static library `libunisic-kit.a` and the `Unisic.Kit` QML
+module (under `build/qmlmod/Unisic/Kit/`).
+
 ## Usage
 
 `unisic-kit` is not distributed as a prebuilt binary SDK. It is consumed as a
@@ -36,9 +57,27 @@ source (Unisic and Unisic Studio both do this).
 git submodule add <unisic-kit-repo-url> external/unisic-kit
 ```
 
-CMake build files (so the consuming app can `add_subdirectory()` this kit and
-link against it, and so the QML module registers as `Unisic.Kit`) are not
-present yet — they arrive in a follow-up commit.
+Then in the consuming app's `CMakeLists.txt`:
+
+```cmake
+add_subdirectory(external/unisic-kit)
+target_link_libraries(myapp PRIVATE unisic-kit unisic-kitplugin)
+```
+
+C++ headers are exported under `src/`, so consumers include
+`<capture/ScreenCastSession.h>`, `<theme/ThemeController.h>`,
+`<media/FfmpegUtil.h>`, etc. The QML side imports `import Unisic.Kit`.
+
+The consuming app names its config file once at startup (defaults to `unisic`)
+and wires the icon image provider onto its QML engine:
+
+```cpp
+UnisicKit::setConfigName("unisic-studio"); // ~/.config/unisic-studio/unisic-studio.conf
+engine.addImageProvider("icon", new IconImageProvider(nullptr));
+```
+
+`ThemeController` and `Theme` register declaratively into the `Unisic.Kit`
+module — do not register them imperatively.
 
 ## Provenance
 

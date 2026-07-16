@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Effects
-import Unisic
+import Unisic.Kit
 
 // iOS-style toggle.
 Rectangle {
@@ -39,7 +39,7 @@ Rectangle {
         anchors.fill: parent
         cursorShape: Qt.PointingHandCursor
         // Emit only — writing `checked` here would destroy the consumer's
-        // declarative binding (checked: App.settings.x) on first interaction;
+        // declarative binding (e.g. checked: model.enabled) on first interaction;
         // the handler updates the source and the binding flows back.
         onClicked: root.toggled(!root.checked)
     }

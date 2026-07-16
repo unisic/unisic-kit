@@ -76,5 +76,5 @@ private:
     QString m_themeName;
     int m_rev = 0;
     bool m_bumpQueued = false;
-    QSettings m_settings{UnisicConfig::filePath(), QSettings::IniFormat};
+    QSettings m_settings{UnisicKit::filePath(), QSettings::IniFormat};
 };

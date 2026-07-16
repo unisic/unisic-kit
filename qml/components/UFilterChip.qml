@@ -1,5 +1,5 @@
 import QtQuick
-import Unisic
+import Unisic.Kit
 
 // Pill toggle used by the History page's filter bar. Radio-style (one of a set
 // writes the same property) or standalone toggle — the caller owns the state,

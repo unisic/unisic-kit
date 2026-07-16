@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Effects
-import Unisic
+import Unisic.Kit
 
 Item {
     id: root
