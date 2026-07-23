@@ -46,6 +46,9 @@ public:
     // wantCursorMeta requests SPA_META_Header + SPA_META_Cursor on the buffers
     // and enables the cursor sampling / shape path. Defaulted off: existing
     // callers are byte-for-byte unaffected.
+    // pipewireFd: the portal's OpenPipeWireRemote fd (ownership taken), or -1
+    // to connect to the user's DEFAULT PipeWire daemon — the KWin-native
+    // (zkde_screencast) path, where the compositor hands out only a node id.
     bool start(int pipewireFd, uint nodeId, int maxFps, bool wantCursorMeta = false);
     void stop();
 

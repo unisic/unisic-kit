@@ -118,40 +118,53 @@ bool PipeWireGrabber::start(int pipewireFd, uint nodeId, int maxFps, bool wantCu
     m_cursorSamples.clear();
     m_cursorOverflowWarned = false;
     m_lastCursorX = m_lastCursorY = 0.0;
+    // pipewireFd < 0 = no portal fd: connect to the user's default PipeWire
+    // daemon instead. That is the KWin-native (zkde_screencast) path — the
+    // compositor publishes the stream node on the session daemon and hands us
+    // only the node id.
     m_loop = pw_thread_loop_new("unisic-pipewire", nullptr);
     if (!m_loop) {
-        close(pipewireFd);
+        if (pipewireFd >= 0)
+            close(pipewireFd);
         return false;
     }
 
     m_context = pw_context_new(pw_thread_loop_get_loop(m_loop), nullptr, 0);
     if (!m_context) {
-        close(pipewireFd);
+        if (pipewireFd >= 0)
+            close(pipewireFd);
         stop();
         return false;
     }
     if (pw_thread_loop_start(m_loop) != 0) {
         qWarning() << "pw_thread_loop_start failed";
-        close(pipewireFd);
+        if (pipewireFd >= 0)
+            close(pipewireFd);
         stop();
         return false;
     }
 
     pw_thread_loop_lock(m_loop);
-    const int dupFd = fcntl(pipewireFd, F_DUPFD_CLOEXEC, 3);
-    if (dupFd < 0) {
-        pw_thread_loop_unlock(m_loop);
-        close(pipewireFd);
-        stop();
-        return false;
+    if (pipewireFd >= 0) {
+        const int dupFd = fcntl(pipewireFd, F_DUPFD_CLOEXEC, 3);
+        if (dupFd < 0) {
+            pw_thread_loop_unlock(m_loop);
+            close(pipewireFd);
+            stop();
+            return false;
+        }
+        m_core = pw_context_connect_fd(m_context, dupFd, nullptr, 0);
+        if (!m_core)
+            close(dupFd);
+    } else {
+        m_core = pw_context_connect(m_context, nullptr, 0);
     }
-    m_core = pw_context_connect_fd(m_context, dupFd, nullptr, 0);
     if (!m_core) {
-        close(dupFd);
         pw_thread_loop_unlock(m_loop);
-        close(pipewireFd);
+        if (pipewireFd >= 0)
+            close(pipewireFd);
         stop();
-        qWarning() << "pw_context_connect_fd failed";
+        qWarning() << "pw_context_connect failed";
         return false;
     }
 
@@ -169,7 +182,8 @@ bool PipeWireGrabber::start(int pipewireFd, uint nodeId, int maxFps, bool wantCu
                                                PW_KEY_MEDIA_ROLE, "Screen", nullptr));
     if (!m_stream) {
         pw_thread_loop_unlock(m_loop);
-        close(pipewireFd);
+        if (pipewireFd >= 0)
+            close(pipewireFd);
         stop();
         return false;
     }
@@ -206,7 +220,8 @@ bool PipeWireGrabber::start(int pipewireFd, uint nodeId, int maxFps, bool wantCu
                                                              PW_STREAM_FLAG_MAP_BUFFERS),
                                 params, 1);
     pw_thread_loop_unlock(m_loop);
-    close(pipewireFd);
+    if (pipewireFd >= 0)
+        close(pipewireFd);
 
     if (res < 0) {
         qWarning() << "pw_stream_connect failed:" << res;

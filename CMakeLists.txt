@@ -99,3 +99,25 @@ if(PIPEWIRE_FOUND)
 else()
     message(WARNING "libpipewire-0.3 not found — PipeWireGrabber (screen frame capture) will be unavailable")
 endif()
+
+# Optional: KWin-native screencasting (zkde_screencast_unstable_v1 — the
+# Spectacle path). The app names the capture source itself: no portal share
+# dialog, no restore tokens. Consumers gate on HAVE_KWIN_SCREENCAST and fall
+# back to the portal when KWinScreencasting::isAvailable() is false (non-KWin,
+# or the app's desktop file lacks
+# X-KDE-Wayland-Interfaces=zkde_screencast_unstable_v1).
+# Needs Qt6 WaylandClient (+ its wayland-scanner tooling), Qt6 GuiPrivate (qpa
+# native interface for the per-screen wl_output) and plasma-wayland-protocols.
+find_package(Qt6 QUIET COMPONENTS WaylandClient)
+find_package(PlasmaWaylandProtocols 1.7 QUIET)
+if(TARGET Qt6::WaylandClient AND PlasmaWaylandProtocols_FOUND)
+    qt6_generate_wayland_protocol_client_sources(unisic-kit FILES
+        ${PLASMA_WAYLAND_PROTOCOLS_DIR}/zkde-screencast-unstable-v1.xml)
+    target_sources(unisic-kit PRIVATE
+        src/capture/KWinScreencasting.h src/capture/KWinScreencasting.cpp)
+    target_link_libraries(unisic-kit PUBLIC Qt6::WaylandClient PRIVATE Qt6::GuiPrivate)
+    target_compile_definitions(unisic-kit PUBLIC HAVE_KWIN_SCREENCAST)
+    message(STATUS "unisic-kit: KWin-native screencasting enabled (HAVE_KWIN_SCREENCAST=ON)")
+else()
+    message(STATUS "unisic-kit: KWin-native screencasting disabled (needs qt6-qtwayland-devel + plasma-wayland-protocols) — recording falls back to the portal everywhere")
+endif()
