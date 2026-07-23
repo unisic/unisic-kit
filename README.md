@@ -6,8 +6,11 @@ need in common, so they don't drift apart:
 
 - **C++ static library**
   - Portal `ScreenCastSession` (XDG Desktop Portal ScreenCast setup)
+  - `KWinScreencasting` (KWin-native zkde_screencast client — record a named
+    output/region/window with no portal dialog; optional, needs the
+    `X-KDE-Wayland-Interfaces=zkde_screencast_unstable_v1` desktop-file grant)
   - `PortalRequest` (portal D-Bus request/response handling)
-  - `PipeWireGrabber` (PipeWire frame capture)
+  - `PipeWireGrabber` (PipeWire frame capture — portal fd or default daemon)
   - `ThemeController` (light/dark theme + accent color state)
   - `IconImageProvider` (QML image provider for symbolic icons)
   - `ConfigPath` (XDG-aware config path resolution)

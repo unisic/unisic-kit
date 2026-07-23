@@ -111,6 +111,17 @@ kit-only surface re-applied on top, so the kit is now a strict superset:
 - `CMakeLists.txt` — static `unisic-kit` library + `Unisic.Kit` QML module.
   Modelled on Unisic's `CMakeLists.txt` (optional-PipeWire guard, `qmlmod/`
   output dir, symbolic-icon resource prefix) but reduced to the kit's sources.
+- `src/capture/KWinScreencasting.{h,cpp}` — client of KWin's
+  `zkde_screencast_unstable_v1` protocol (adapted from KDE Spectacle's
+  `screencasting.{h,cpp}`, LGPL-2.1/3.0, SPDX headers kept): the app names the
+  capture source (output / global-logical region / window uuid) and receives a
+  PipeWire node id on the default session daemon — no portal share dialog, no
+  restore tokens. Optional `HAVE_KWIN_SCREENCAST` build (Qt6 WaylandClient +
+  GuiPrivate + plasma-wayland-protocols); the consuming app's desktop file must
+  carry `X-KDE-Wayland-Interfaces=zkde_screencast_unstable_v1` or
+  `isAvailable()` stays false and consumers fall back to the portal.
+  `PipeWireGrabber::start()` takes fd `-1` for this path (default-daemon
+  connect instead of the portal's `OpenPipeWireRemote` fd).
 
 ## Diffing / syncing against upstream
 
