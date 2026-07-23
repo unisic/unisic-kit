@@ -1,5 +1,9 @@
 cmake_minimum_required(VERSION 3.21)
-project(unisic-kit VERSION 0.1.0 LANGUAGES CXX)
+# C alongside CXX: the wayland-scanner output for zkde_screencast (the
+# *-protocol.c interface definitions) is plain C — without the language the
+# generated file is silently not compiled and the interface symbol is missing
+# at link time.
+project(unisic-kit VERSION 0.1.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
