@@ -2,7 +2,12 @@
 #include <pipewire/pipewire.h>
 #include <spa/param/video/format-utils.h>
 #include <spa/param/video/type-info.h>
-#include <spa/param/buffers.h>   // SPA_TYPE_OBJECT_ParamMeta, SPA_PARAM_META_*
+// SPA_PARAM_Meta and the spa_param_meta enum (SPA_PARAM_META_type / _size) are
+// pulled in transitively by pipewire.h → spa/param/param.h. Do NOT #include
+// <spa/param/buffers.h> for them: some distro libpipewire-0.3-dev packages
+// (the AppImage CI runner) don't ship that path even though the enum is
+// available, and a manual fallback definition then clashes with the transitive
+// one. spa/buffer/meta.h (the cursor bitmap structs) is a separate, stable path.
 #include <spa/buffer/meta.h>     // spa_meta_{header,cursor,bitmap}
 #include <spa/pod/builder.h>
 #include <QDebug>
@@ -29,8 +34,14 @@ static constexpr int kCursorMetaSizeMax =
 // Decode a spa_meta_bitmap into a deep-copied QImage (owns its pixels). Returns
 // a null image for formats we do not handle or a malformed/empty bitmap. Cursor
 // bitmaps are tiny, so the mapping below is chosen for a little-endian host
-// (x86/arm64): BGRA/BGRx -> the word-ordered ARGB32/RGB32 whose in-memory bytes
+// (x86/arm64): BGRA/BGRx -> the word-ordered ARGB32*/RGB32 whose in-memory bytes
 // are B,G,R,(A/x); RGBA/RGBx -> the byte-ordered RGBA/RGBX8888.
+//
+// The alpha is PREMULTIPLIED: both Wayland's ARGB8888 buffers and the XCursor
+// files the themes ship store it that way, and the compositor hands the cursor
+// through unchanged. Mapping it to a straight-alpha format instead makes every
+// later convertToFormat() premultiply it a SECOND time, which eats the
+// antialiased outline and is exactly what made the recorded pointer look soft.
 static QImage cursorBitmapToImage(const struct spa_meta_bitmap *bm)
 {
     if (!bm || bm->format == 0 || bm->offset < sizeof(struct spa_meta_bitmap))
@@ -44,9 +55,9 @@ static QImage cursorBitmapToImage(const struct spa_meta_bitmap *bm)
         return {};
     QImage::Format fmt;
     switch (bm->format) {
-    case SPA_VIDEO_FORMAT_BGRA: fmt = QImage::Format_ARGB32; break;      // mem: B,G,R,A
+    case SPA_VIDEO_FORMAT_BGRA: fmt = QImage::Format_ARGB32_Premultiplied; break;  // mem: B,G,R,A
     case SPA_VIDEO_FORMAT_BGRx: fmt = QImage::Format_RGB32; break;       // mem: B,G,R,x (opaque)
-    case SPA_VIDEO_FORMAT_RGBA: fmt = QImage::Format_RGBA8888; break;    // mem: R,G,B,A
+    case SPA_VIDEO_FORMAT_RGBA: fmt = QImage::Format_RGBA8888_Premultiplied; break; // mem: R,G,B,A
     case SPA_VIDEO_FORMAT_RGBx: fmt = QImage::Format_RGBX8888; break;    // mem: R,G,B,x (opaque)
     default: return {};
     }
@@ -101,15 +112,12 @@ PipeWireGrabber::~PipeWireGrabber()
 bool PipeWireGrabber::start(int pipewireFd, uint nodeId, int maxFps, bool wantCursorMeta)
 {
     m_wantCursorMeta = wantCursorMeta;
-    // Reset the cursor-meta state so an instance reused across start/stop cycles
-    // does not carry a stale shape cache (which would suppress re-emit) or old
-    // samples. Touches only the new default-off members — existing callers are
-    // unaffected. Safe unlocked: nothing is streaming yet.
-    m_shapeCache.clear();
+    // Reset the cursor-meta state so an instance reused across start/stop
+    // cycles does not carry stale samples or a stale position into the new
+    // recording. Safe unlocked: nothing is streaming yet.
     m_cursorSamples.clear();
     m_cursorOverflowWarned = false;
     m_lastCursorX = m_lastCursorY = 0.0;
-
     m_loop = pw_thread_loop_new("unisic-pipewire", nullptr);
     if (!m_loop) {
         close(pipewireFd);
@@ -250,7 +258,7 @@ void PipeWireGrabber::onParamChanged(uint32_t id, const void *param)
         return;
 
     ev->haveFormat = true;
-    m_format = ev->format.info.raw.format;
+    m_format.store(ev->format.info.raw.format, std::memory_order_relaxed);
     const QSize size(int(ev->format.info.raw.size.width), int(ev->format.info.raw.size.height));
     m_size = size;
 
@@ -290,31 +298,27 @@ void PipeWireGrabber::onProcess()
 
     spa_buffer *buf = b->buffer;
 
-    // Presentation time for this buffer, shared by the frame stamp and any
-    // cursor sample so the consumer can map both onto one CLOCK_MONOTONIC
-    // timeline. Fallback chain: header pts (when the compositor set one) ->
-    // the stream clock -> the monotonic clock read directly. All three are in
-    // the CLOCK_MONOTONIC domain.
+    // Presentation time for this buffer, shared by the frame stamp (m_ptsNs)
+    // and any cursor sample so a consumer can map both onto one CLOCK_MONOTONIC
+    // timeline. Fallback chain: header pts (when the compositor set one; the
+    // Header meta is only announced with wantCursorMeta) -> the monotonic clock
+    // read directly. Both are in the CLOCK_MONOTONIC domain. clock_gettime is
+    // used instead of pw_stream_get_time_n, which older libpipewire on some CI
+    // runners does not provide.
     qint64 ptsNs = 0;
-    if (m_wantCursorMeta) {
-        if (auto *hdr = static_cast<spa_meta_header *>(
-                spa_buffer_find_meta_data(buf, SPA_META_Header, sizeof(struct spa_meta_header))))
-            if (hdr->pts != 0)
-                ptsNs = hdr->pts;
-    }
-    if (ptsNs == 0) {
-        struct pw_time t = {};
-        if (pw_stream_get_time_n(m_stream, &t, sizeof(t)) == 0 && t.now > 0)
-            ptsNs = t.now;
-    }
+    if (auto *hdr = static_cast<spa_meta_header *>(
+            spa_buffer_find_meta_data(buf, SPA_META_Header, sizeof(struct spa_meta_header))))
+        if (hdr->pts != 0)
+            ptsNs = hdr->pts;
     if (ptsNs == 0) {
         struct timespec ts = {};
         clock_gettime(CLOCK_MONOTONIC, &ts);
         ptsNs = qint64(ts.tv_sec) * 1000000000LL + ts.tv_nsec;
     }
 
-    // Cursor metadata (opt-in). Handled independently of frame validity: a
-    // corrupted/undersized video frame can still carry good cursor meta.
+    // Cursor metadata (opt-in). Handled BEFORE and independently of frame
+    // validity: a corrupted/undersized video frame can still carry good cursor
+    // meta, and the early-out below requeues the buffer.
     if (m_wantCursorMeta) {
         if (auto *cur = static_cast<spa_meta_cursor *>(
                 spa_buffer_find_meta_data(buf, SPA_META_Cursor, sizeof(struct spa_meta_cursor)))) {
@@ -340,19 +344,21 @@ void PipeWireGrabber::onProcess()
             s.x = m_lastCursorX;
             s.y = m_lastCursorY;
 
-            // Bitmap only arrives when the shape CHANGED (bitmap_offset != 0);
-            // decode + cache + notify once per new id. The cache is owned by
-            // this (PipeWire) thread, so it needs no lock.
-            if (haveShape && cur->bitmap_offset != 0 && !m_shapeCache.contains(s.shapeId)) {
+            // A non-zero bitmap_offset means a NEW bitmap is attached this frame:
+            // the compositor sets it precisely when the pointer shape changes
+            // (arrow → hand → I-beam …). Decode on EVERY such frame — do not gate
+            // on "id not seen before". KWin reuses one cursor id and swaps the
+            // bitmap in place, so an id-seen check froze the pointer on the first
+            // shape (the arrow) for the whole recording. The consumer re-keys by
+            // id, so re-emitting a known id just refreshes its bitmap.
+            if (haveShape && cur->bitmap_offset != 0) {
                 const auto *bm = SPA_PTROFF(cur, cur->bitmap_offset, const struct spa_meta_bitmap);
                 QImage img = cursorBitmapToImage(bm);
-                if (!img.isNull()) {
-                    m_shapeCache.insert(s.shapeId, img);
+                if (!img.isNull())
                     // Direct emit off the PipeWire thread; QImage/QPoint/int are
                     // metatypes, so a queued/auto connection marshals safely.
                     emit cursorShapeChanged(s.shapeId, img,
                                             QPoint(cur->hotspot.x, cur->hotspot.y));
-                }
             }
 
             QMutexLocker lock(&m_mutex);
@@ -453,7 +459,6 @@ bool PipeWireGrabber::latestFrame(QByteArray &out, quint64 *seq, qint64 *ptsNs)
 QVector<CursorSample> PipeWireGrabber::takeCursorSamples()
 {
     QMutexLocker lock(&m_mutex);
-    // O(1) hand-off: swap leaves m_cursorSamples empty for the next batch.
     QVector<CursorSample> out;
     out.swap(m_cursorSamples);
     return out;
@@ -463,7 +468,7 @@ QString PipeWireGrabber::pixelFormat() const
 {
     // Native SPA byte order -> ffmpeg rawvideo pix_fmt (onProcess no longer
     // swizzles): the "x" formats map to the *0 variants that ignore the padding.
-    switch (m_format) {
+    switch (m_format.load(std::memory_order_relaxed)) {
     case SPA_VIDEO_FORMAT_BGRA: return QStringLiteral("bgra");
     case SPA_VIDEO_FORMAT_RGBx: return QStringLiteral("rgb0");
     case SPA_VIDEO_FORMAT_RGBA: return QStringLiteral("rgba");

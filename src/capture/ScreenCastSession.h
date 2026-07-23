@@ -20,6 +20,14 @@ public:
     // match the portal bits (HIDDEN=1, EMBEDDED=2, METADATA=4).
     enum class CursorMode { Hidden = 1, Embedded = 2, Metadata = 4 };
 
+    // Which cursor modes this portal supports (bitmask of CursorMode values).
+    // Blocking Properties.Get, cached after the first successful answer — a
+    // transient failure (0) is not cached, so it cannot permanently disable
+    // the metadata path. Metadata is optional in the spec (portal v2+), so a
+    // caller that needs it can probe here; start(Metadata) already falls back
+    // to Embedded on its own.
+    static uint availableCursorModes();
+
     // sourceTypes: bitmask MONITOR=1, WINDOW=2, VIRTUAL=4 (the portal shows a
     // matching picker). Default MONITOR for screen/region capture.
     void start(bool includeCursor, uint sourceTypes = 1, const QString &restoreToken = {});

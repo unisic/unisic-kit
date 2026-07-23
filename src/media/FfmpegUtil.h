@@ -21,9 +21,20 @@ const QSet<QString> &encoders();
 // failed (empty set), so a preferred encoder is kept rather than rejected.
 bool encoderUsable(const QString &name);
 
-// Whether a hardware H.264 encoder is usable now: "vaapi" needs h264_vaapi AND
-// a render node at /dev/dri/renderD128; "nvenc" needs h264_nvenc.
+// Whether a hardware encoder is LISTED as usable now: "vaapi" needs h264_vaapi
+// AND a render node at /dev/dri/renderD128; "nvenc" needs h264_nvenc;
+// "av1-nvenc" (RTX 40+) needs av1_nvenc — the only hardware encoder a WebM can
+// carry here.
 bool hardwareEncoderAvailable(const QString &id);
+
+// Does the encoder actually ENCODE, not just appear in -encoders? Measured
+// necessity, not caution: ffmpeg may list vp9_vaapi/h264_vaapi and the render
+// node may exist, yet the encode fails outright — the listing describes the
+// ffmpeg build, the hardware behind it may not implement the codec. Encodes a
+// tiny synthetic clip to /dev/null (~0.5 s), cached per encoder per process;
+// thread-safe (the probe runs outside the cache lock, a concurrent duplicate
+// probe is harmless).
+bool hardwareEncoderWorks(const QString &id);
 
 // GIF two-pass palette filter strings. quality: 0 = fast/small, 1 = balanced,
 // 2 = best. gifPaletteGenFilter feeds pass 1 (palettegen), gifPaletteUseFilter

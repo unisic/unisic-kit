@@ -47,9 +47,15 @@ static uint screenCastPortalVersion()
 // Bitmask of cursor_mode values the portal supports (HIDDEN=1, EMBEDDED=2,
 // METADATA=4). Added in ScreenCast portal version 2; older portals return 0,
 // in which case we assume the two original modes (Hidden/Embedded) work.
-static uint screenCastAvailableCursorModes()
+// Cache only a successful answer: a transient failure (0) must not disable
+// the metadata path for the whole process lifetime.
+uint ScreenCastSession::availableCursorModes()
 {
-    return screenCastPortalProperty(QStringLiteral("AvailableCursorModes"));
+    static uint cached = 0;
+    if (cached != 0)
+        return cached;
+    cached = screenCastPortalProperty(QStringLiteral("AvailableCursorModes"));
+    return cached;
 }
 
 ScreenCastSession::~ScreenCastSession()
@@ -125,17 +131,14 @@ void ScreenCastSession::selectSources(CursorMode cursorMode)
     // Resolve the cursor_mode we actually request. Hidden/Embedded predate the
     // AvailableCursorModes property, so they need no probe. Metadata is newer:
     // request it only when the portal advertises it, else composite the cursor
-    // (Embedded) so an old portal still starts the cast. Cache only a
-    // successful probe (a transient 0 must not disable metadata for the whole
-    // process); a failed/absent read leaves Embedded as the safe fallback.
+    // (Embedded) so an old portal still starts the cast. availableCursorModes()
+    // caches only a successful probe (a transient 0 must not disable metadata
+    // for the whole process); a failed/absent read leaves Embedded as the safe
+    // fallback.
     CursorMode effective = cursorMode;
-    if (cursorMode == CursorMode::Metadata) {
-        static uint availableCursorModes = 0;
-        if (availableCursorModes == 0)
-            availableCursorModes = screenCastAvailableCursorModes();
-        if ((availableCursorModes & uint(CursorMode::Metadata)) == 0)
-            effective = CursorMode::Embedded;
-    }
+    if (cursorMode == CursorMode::Metadata
+        && (availableCursorModes() & uint(CursorMode::Metadata)) == 0)
+        effective = CursorMode::Embedded;
     m_effectiveCursorMode = effective;
 
     QVariantMap options{

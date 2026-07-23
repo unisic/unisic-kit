@@ -2,6 +2,7 @@
 #include <QString>
 #include <QStandardPaths>
 #include <QDir>
+#include <QFileInfo>
 
 // Single source of the settings file location, shared by the consuming app's
 // Settings and by ThemeController so they write ONE file instead of two.
@@ -37,8 +38,29 @@ inline QString configName()
     return configNameRef();
 }
 
+// Optional FULL-PATH override for apps whose historical config file name does
+// not follow the <name>/<name>.conf derivation (Unisic keeps unisic.conf as
+// the basename even in its "unisic-dev" dev-build dir). When set, it wins over
+// the derived path; configDir() follows the override's directory so ancillary
+// folders (themes/) stay next to the config file.
+inline QString &configFileOverrideRef()
+{
+    static QString path;
+    return path;
+}
+
+inline void setConfigFilePath(const QString &path)
+{
+    configFileOverrideRef() = path;
+}
+
 inline QString configDir()
 {
+    if (!configFileOverrideRef().isEmpty()) {
+        const QString dir = QFileInfo(configFileOverrideRef()).absolutePath();
+        QDir().mkpath(dir);
+        return dir;
+    }
     const QString dir = QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation)
                         + QLatin1Char('/') + configName();
     QDir().mkpath(dir);
@@ -47,6 +69,8 @@ inline QString configDir()
 
 inline QString filePath()
 {
+    if (!configFileOverrideRef().isEmpty())
+        return configFileOverrideRef();
     return configDir() + QLatin1Char('/') + configName() + QStringLiteral(".conf");
 }
 

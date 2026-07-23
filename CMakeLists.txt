@@ -27,6 +27,7 @@ qt_add_library(unisic-kit STATIC
     src/capture/ScreenCastSession.h src/capture/ScreenCastSession.cpp
     src/media/FfmpegUtil.h src/media/FfmpegUtil.cpp
     src/theme/ThemeController.h src/theme/ThemeController.cpp
+    src/theme/ThemeJson.h
     src/theme/IconImageProvider.h src/theme/IconImageProvider.cpp
 )
 
@@ -58,6 +59,10 @@ qt_add_qml_module(unisic-kit
         qml/components/UHoverTip.qml
         qml/components/USwitch.qml
         qml/components/USlider.qml
+        qml/components/USettingRow.qml
+        qml/components/UShortcutRecorder.qml
+        qml/components/UShortcutList.qml
+        qml/components/UShortcutsHelp.qml
         qml/components/UTextField.qml
         qml/components/UFilterChip.qml
         qml/components/ColorDot.qml

@@ -34,20 +34,8 @@ struct CursorSample {
 // samples it at a fixed FPS (sample-and-hold gives GIF a constant rate).
 //
 // Cursor-metadata capture (opt in with start(..., wantCursorMeta=true), and
-// only after ScreenCastSession negotiated CursorMode::Metadata):
-//
-//   auto *g = new PipeWireGrabber;
-//   connect(g, &PipeWireGrabber::cursorShapeChanged, consumer,
-//           [](int id, const QImage &img, const QPoint &hotspot) {
-//               // store the bitmap keyed by id; QUEUED — emitted off the GUI
-//               // thread, so an auto/queued connection is required.
-//           }, Qt::QueuedConnection);
-//   g->start(fd, nodeId, fps, /*wantCursorMeta=*/true);
-//   // ...periodically, on the GUI/recorder thread:
-//   for (const CursorSample &s : g->takeCursorSamples()) { /* build track */ }
-//   // frames carry the same clock:
-//   QByteArray frame; quint64 seq; qint64 ptsNs;
-//   if (g->latestFrame(frame, &seq, &ptsNs)) { /* map to cursor tMonoNs */ }
+// only meaningful after ScreenCastSession negotiated CursorMetadata — in any
+// other cursor mode no cursor meta is attached to the buffers).
 class PipeWireGrabber : public QObject
 {
     Q_OBJECT
@@ -57,8 +45,7 @@ public:
 
     // wantCursorMeta requests SPA_META_Header + SPA_META_Cursor on the buffers
     // and enables the cursor sampling / shape path. Defaulted off: existing
-    // callers are byte-for-byte unaffected. Only useful when the portal session
-    // was started with CursorMode::Metadata (else no cursor meta is attached).
+    // callers are byte-for-byte unaffected.
     bool start(int pipewireFd, uint nodeId, int maxFps, bool wantCursorMeta = false);
     void stop();
 
@@ -77,8 +64,7 @@ public:
     bool latestFrame(QByteArray &out, quint64 *seq = nullptr, qint64 *ptsNs = nullptr);
 
     // Drains all cursor samples captured since the last call (empty when
-    // wantCursorMeta was false). Call from the GUI/recorder thread; O(1) swap
-    // under the mutex.
+    // wantCursorMeta was false). Call from the GUI/recorder thread.
     QVector<CursorSample> takeCursorSamples();
 
 signals:
@@ -108,14 +94,16 @@ private:
     qint64 m_ptsNs = 0;    // pts of m_latest (CLOCK_MONOTONIC ns), guarded by m_mutex
     std::atomic<bool> m_haveFrame{false};
     QSize m_size;
-    uint32_t m_format = 0;
+    // Written on the PipeWire thread (onParamChanged), read on the GUI thread
+    // (pixelFormat() during beginEncoding and per-frame compositing) — atomic
+    // so a mid-stream renegotiation is not a data race.
+    std::atomic<uint32_t> m_format{0};
 
     // Cursor-metadata path. m_cursorSamples is drained by takeCursorSamples();
     // the rest below is PipeWire-thread-only state.
     bool m_wantCursorMeta = false;
     QVector<CursorSample> m_cursorSamples;   // guarded by m_mutex
     bool m_cursorOverflowWarned = false;     // guarded by m_mutex
-    QHash<int, QImage> m_shapeCache;         // PipeWire thread only: shapes already emitted
     double m_lastCursorX = 0.0;              // PipeWire thread only: last visible position,
     double m_lastCursorY = 0.0;              //   carried into hidden samples so interpolation holds
 };

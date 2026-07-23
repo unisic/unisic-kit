@@ -17,9 +17,11 @@ need in common, so they don't drift apart:
   - The `U*` component design system (`UButton`, `UCard`, `UIcon`,
     `UIconButton`, `USplitIconButton`, `UComboBox`, `UValueCombo`,
     `UMenuButton`, `UConfirmDialog`, `UColorPopup`, `UHoverTip`, `USwitch`,
-    `USlider`, `UTextField`, `UFilterChip`, and supporting components like
-    `ColorDot`, `SidebarItem`, `ToolChip`, `MiddleScroll`, `WheelBoost`,
-    `VideoPreview`)
+    `USlider`, `USettingRow`, `UTextField`, `UFilterChip`, the hotkey editors
+    `UShortcutRecorder`/`UShortcutList`/`UShortcutsHelp` (host app supplies
+    `formatKey` and reacts to `captureStateChanged` — see the files' doc
+    comments), and supporting components like `ColorDot`, `SidebarItem`,
+    `ToolChip`, `MiddleScroll`, `WheelBoost`, `VideoPreview`)
   - Symbolic icon set (`resources/icons/sym/`)
 
 ## License

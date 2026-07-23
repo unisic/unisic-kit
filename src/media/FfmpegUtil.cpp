@@ -1,6 +1,10 @@
 #include "FfmpegUtil.h"
-#include <QProcess>
+#include <QDebug>
 #include <QFileInfo>
+#include <QHash>
+#include <QMutex>
+#include <QProcess>
+#include <QStringList>
 #include <QTimer>
 
 namespace FfmpegUtil {
@@ -66,7 +70,65 @@ bool hardwareEncoderAvailable(const QString &id)
                && QFileInfo::exists(QStringLiteral("/dev/dri/renderD128"));
     if (id == QLatin1String("nvenc"))
         return encoders().contains(QStringLiteral("h264_nvenc"));
+    // AV1 NVENC (RTX 40+) — the only hardware encoder a WebM can carry here.
+    if (id == QLatin1String("av1-nvenc"))
+        return encoders().contains(QStringLiteral("av1_nvenc"));
     return false;
+}
+
+bool hardwareEncoderWorks(const QString &id)
+{
+    // The cache is read from the GUI thread (diagnostics, dev buttons) and
+    // from pool-thread encoder resolution — guard the hash, but run the
+    // probe itself outside the lock (a concurrent duplicate probe is harmless,
+    // both sides insert the same answer; holding the lock through it would
+    // block a GUI caller for the probe's full 8 s instead).
+    static QMutex cacheMutex;
+    static QHash<QString, bool> cache;
+    {
+        QMutexLocker lock(&cacheMutex);
+        const auto it = cache.constFind(id);
+        if (it != cache.constEnd())
+            return *it;
+    }
+    if (!hardwareEncoderAvailable(id)) {
+        QMutexLocker lock(&cacheMutex);
+        cache.insert(id, false);
+        return false;
+    }
+    QStringList args{QStringLiteral("-hide_banner"), QStringLiteral("-loglevel"),
+                     QStringLiteral("error"), QStringLiteral("-y")};
+    if (id == QLatin1String("vaapi")) {
+        args << QStringLiteral("-vaapi_device") << QStringLiteral("/dev/dri/renderD128")
+             << QStringLiteral("-f") << QStringLiteral("lavfi")
+             << QStringLiteral("-i") << QStringLiteral("testsrc2=size=320x240:rate=30:duration=0.1")
+             << QStringLiteral("-vf") << QStringLiteral("format=nv12,hwupload")
+             << QStringLiteral("-c:v") << QStringLiteral("h264_vaapi");
+    } else {
+        args << QStringLiteral("-f") << QStringLiteral("lavfi")
+             << QStringLiteral("-i") << QStringLiteral("testsrc2=size=320x240:rate=30:duration=0.1")
+             << QStringLiteral("-c:v")
+             << (id == QLatin1String("av1-nvenc") ? QStringLiteral("av1_nvenc")
+                                                  : QStringLiteral("h264_nvenc"))
+             << QStringLiteral("-pix_fmt") << QStringLiteral("yuv420p");
+    }
+    args << QStringLiteral("-f") << QStringLiteral("null") << QStringLiteral("-");
+    QProcess probe;
+    probe.setProcessChannelMode(QProcess::MergedChannels);
+    probe.start(QStringLiteral("ffmpeg"), args);
+    const bool ok = probe.waitForFinished(8000) && probe.exitStatus() == QProcess::NormalExit
+                    && probe.exitCode() == 0;
+    if (!ok) {
+        // Log WHY: "works=n" alone is undiagnosable in the field (session limits,
+        // driver mismatch, a missing device node all look identical without it).
+        const QString why = QString::fromUtf8(probe.readAll()).right(400).trimmed();
+        qInfo().noquote() << "FfmpegUtil: hardware encoder" << id
+                          << "is listed but does not encode here"
+                          << (why.isEmpty() ? QString() : QStringLiteral("- %1").arg(why));
+    }
+    QMutexLocker lock(&cacheMutex);
+    cache.insert(id, ok);
+    return ok;
 }
 
 void stopProcess(QProcess *&process)
