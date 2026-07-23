@@ -108,9 +108,11 @@ endif()
 # X-KDE-Wayland-Interfaces=zkde_screencast_unstable_v1).
 # Needs Qt6 WaylandClient (+ its wayland-scanner tooling), Qt6 GuiPrivate (qpa
 # native interface for the per-screen wl_output) and plasma-wayland-protocols.
-find_package(Qt6 QUIET COMPONENTS WaylandClient)
+# GuiPrivate is its own find_package component (distros ship the private
+# configs separately — e.g. Fedora's qt6-qtbase-private-devel).
+find_package(Qt6 QUIET COMPONENTS WaylandClient GuiPrivate)
 find_package(PlasmaWaylandProtocols 1.7 QUIET)
-if(TARGET Qt6::WaylandClient AND PlasmaWaylandProtocols_FOUND)
+if(TARGET Qt6::WaylandClient AND TARGET Qt6::GuiPrivate AND PlasmaWaylandProtocols_FOUND)
     qt6_generate_wayland_protocol_client_sources(unisic-kit FILES
         ${PLASMA_WAYLAND_PROTOCOLS_DIR}/zkde-screencast-unstable-v1.xml)
     target_sources(unisic-kit PRIVATE
