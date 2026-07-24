@@ -10,7 +10,16 @@ need in common, so they don't drift apart:
     output/region/window with no portal dialog; optional, needs the
     `X-KDE-Wayland-Interfaces=zkde_screencast_unstable_v1` desktop-file grant)
   - `PortalRequest` (portal D-Bus request/response handling)
+  - `IScreenGrabber` (the backend-agnostic frame-source contract both grabbers
+    implement, so a consumer's encoder holds one pointer either way)
   - `PipeWireGrabber` (PipeWire frame capture — portal fd or default daemon)
+  - `X11ShmGrabber` (XShm frame capture straight off the X server, the frame
+    source on an X11 session where there is no working ScreenCast portal;
+    optional, needs libX11 + libXext + libXfixes)
+  - `X11Hotkeys` (XGrabKey global hotkeys for X11 sessions without KGlobalAccel
+    or a usable GlobalShortcuts portal; optional, needs libX11 + libxcb) and
+  - `ShortcutKeyMap` (header-only Qt-portable → X-keysym/GTK-accelerator
+    vocabulary, shared by the grabs above and by desktop custom-shortcut stores)
   - `ThemeController` (light/dark theme + accent color state)
   - `IconImageProvider` (QML image provider for symbolic icons)
   - `ConfigPath` (XDG-aware config path resolution)
@@ -43,6 +52,15 @@ Build dependencies (Fedora package names; use your distro's equivalents):
 - `pipewire-devel` *(optional)* — enables `PipeWireGrabber` screen-frame capture.
   Without it the kit still builds; only `PipeWireGrabber` is dropped and a
   warning is printed at configure time.
+- `libX11-devel libXext-devel libXfixes-devel` *(optional)* - enables
+  `X11ShmGrabber` (`HAVE_X11`): recording on an X11 session.
+- `libX11-devel libxcb-devel` *(optional)* - enables `X11Hotkeys`
+  (`HAVE_X11_HOTKEYS`): global hotkeys on an X11 session. Deliberately a
+  separate gate from the one above; either can be built without the other.
+
+Every optional gate is additive. The Wayland paths (portal + PipeWire,
+KGlobalAccel/portal hotkeys) are untouched by the X11 ones, which are selected
+at runtime only when `QGuiApplication::platformName() == "xcb"`.
 
 ```sh
 cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release

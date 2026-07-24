@@ -65,6 +65,20 @@ Added at the 45ff731 sync (origin paths in unisic):
 | `qml/components/UShortcutList.qml` | `qml/components/UShortcutList.qml` (genericized, see below) |
 | `qml/components/UShortcutsHelp.qml` | `qml/components/UShortcutsHelp.qml` (import swap only) |
 
+Added with the X11 backends (origin paths in unisic):
+
+| File in unisic-kit | Origin path in unisic |
+| --- | --- |
+| `src/hotkeys/ShortcutKeyMap.h` | `src/hotkeys/ShortcutKeyMap.h` (verbatim; MOVED, no copy left upstream) |
+| `src/hotkeys/X11Hotkeys.h` | `src/hotkeys/X11Hotkeys.h` (verbatim; MOVED) |
+| `src/hotkeys/X11Hotkeys.cpp` | `src/hotkeys/X11Hotkeys.cpp` (verbatim; MOVED) |
+
+These are moves, not copies: unisic deleted its versions in the same change and
+now includes them from the kit (`<hotkeys/ShortcutKeyMap.h>`,
+`<hotkeys/X11Hotkeys.h>`), so there is nothing left to keep in sync. Unisic's
+`ShortcutBinder` (which writes desktop custom-shortcut stores) stays app-side
+and consumes `ShortcutKeyMap` from here.
+
 ## Local modifications
 
 The bootstrap copied the files above verbatim. The following adaptations were
@@ -122,6 +136,26 @@ kit-only surface re-applied on top, so the kit is now a strict superset:
   `isAvailable()` stays false and consumers fall back to the portal.
   `PipeWireGrabber::start()` takes fd `-1` for this path (default-daemon
   connect instead of the portal's `OpenPipeWireRemote` fd).
+- `src/record/IScreenGrabber.h` - the abstract frame-source base both grabbers
+  implement (`pixelFormat`/`latestFrame`/`takeCursorSamples`/`stop` + the
+  `formatReady`/`streamError`/`cursorShapeChanged` signals; `CursorSample` moved
+  here out of `PipeWireGrabber.h`). `start()` is deliberately NOT on the base -
+  its arguments are per-backend (portal fd + node id vs. a root rect). A
+  consumer's encoder holds an `IScreenGrabber *` and never learns which backend
+  it got. Always compiled, so the signal wiring exists even with every optional
+  backend off.
+- `src/record/X11ShmGrabber.{h,cpp}` - XShm frame capture on a producer thread
+  with its own `XOpenDisplay` (Xlib is not thread-safe across Qt's connection),
+  falling back to `XGetImage` when `XShmAttach` fails; publishes into a 3-slot
+  rotating pool under the same `++seq` contract as `PipeWireGrabber`, and polls
+  `XFixesGetCursorImage` for `CursorSample`s because a root-window grab does not
+  contain the hardware cursor. Optional `HAVE_X11`.
+- `src/hotkeys/X11Hotkeys.{h,cpp}` - passive `XGrabKey` root grabs on Qt's own X
+  connection, delivered through a `QAbstractNativeEventFilter` (no second
+  display, no thread). Grabs each combo across the Caps/Num lock mask variants,
+  reports `XGrabKey` `BadAccess` back as a conflict id list. The header stays
+  free of any `<X11/...>` include so Xlib's macros (`None`, `Bool`, `KeyPress`)
+  do not leak into consumers. Optional `HAVE_X11_HOTKEYS`.
 
 ## Diffing / syncing against upstream
 

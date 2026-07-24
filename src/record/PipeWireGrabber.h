@@ -1,4 +1,5 @@
 #pragma once
+#include "IScreenGrabber.h"
 #include <QObject>
 #include <QSize>
 #include <QString>
@@ -15,20 +16,6 @@ struct pw_context;
 struct pw_core;
 struct pw_stream;
 
-// One captured cursor position, in the PipeWire stream's own pixel space and
-// clock. Plain value struct — travels out via takeCursorSamples(), never a
-// signal, so it needs no Q_DECLARE_METATYPE. `tMonoNs` shares the CLOCK_MONOTONIC
-// domain with latestFrame()'s ptsNs, so a consumer can map cursor motion and
-// video frames onto one timeline. `shapeId` is the spa_meta_cursor id of the
-// bitmap worn at this sample (0 = unknown); pair it with cursorShapeChanged().
-struct CursorSample {
-    qint64 tMonoNs = 0;   // CLOCK_MONOTONIC ns (== latestFrame() ptsNs domain)
-    double x = 0.0;       // stream pixels
-    double y = 0.0;       // stream pixels
-    bool visible = true;
-    int shapeId = 0;      // spa_meta_cursor id; 0 = no/unknown shape this sample
-};
-
 // Consumes a portal ScreenCast PipeWire stream (SHM buffers, BGRx/BGRA)
 // on PipeWire's own thread and keeps the most recent frame; the recorder
 // samples it at a fixed FPS (sample-and-hold gives GIF a constant rate).
@@ -36,7 +23,7 @@ struct CursorSample {
 // Cursor-metadata capture (opt in with start(..., wantCursorMeta=true), and
 // only meaningful after ScreenCastSession negotiated CursorMetadata — in any
 // other cursor mode no cursor meta is attached to the buffers).
-class PipeWireGrabber : public QObject
+class PipeWireGrabber : public IScreenGrabber
 {
     Q_OBJECT
 public:
@@ -50,11 +37,11 @@ public:
     // to connect to the user's DEFAULT PipeWire daemon — the KWin-native
     // (zkde_screencast) path, where the compositor hands out only a node id.
     bool start(int pipewireFd, uint nodeId, int maxFps, bool wantCursorMeta = false);
-    void stop();
+    void stop() override;
 
     // ffmpeg rawvideo pix_fmt for the negotiated byte order (valid after
     // formatReady): frames are kept in native order, not swizzled to BGRA.
-    QString pixelFormat() const;
+    QString pixelFormat() const override;
 
     // Hands out the latest frame (tightly packed in pixelFormat() and the
     // negotiated size) as a cheap implicitly-shared reference. Returns false if
@@ -64,19 +51,14 @@ public:
     // screen it lets the sampler skip re-cropping an unchanged frame.
     // `ptsNs` (optional) is the frame's presentation time in CLOCK_MONOTONIC ns,
     // the same clock stamped on CursorSample::tMonoNs, so both map to one clock.
-    bool latestFrame(QByteArray &out, quint64 *seq = nullptr, qint64 *ptsNs = nullptr);
+    bool latestFrame(QByteArray &out, quint64 *seq = nullptr, qint64 *ptsNs = nullptr) override;
 
     // Drains all cursor samples captured since the last call (empty when
     // wantCursorMeta was false). Call from the GUI/recorder thread.
-    QVector<CursorSample> takeCursorSamples();
+    QVector<CursorSample> takeCursorSamples() override;
 
-signals:
-    void formatReady(const QSize &size);
-    void streamError(const QString &message);
-    // A cursor shape (identified by spa_meta_cursor id) was seen for the first
-    // time: `image` is a deep-copied RGBA bitmap, `hotspot` its click point.
-    // Emitted from the PipeWire thread — connect QUEUED (or Auto).
-    void cursorShapeChanged(int id, const QImage &image, const QPoint &hotspot);
+    // formatReady / streamError / cursorShapeChanged are inherited from
+    // IScreenGrabber and emitted from the PipeWire thread (connect QUEUED).
 
 public: // called from PipeWire C callbacks
     void onParamChanged(uint32_t id, const void *param);

@@ -95,7 +95,7 @@ static void on_state_changed(void *data, enum pw_stream_state, enum pw_stream_st
         emit ev->self->streamError(QString::fromUtf8(error ? error : "PipeWire stream error"));
 }
 
-PipeWireGrabber::PipeWireGrabber(QObject *parent) : QObject(parent)
+PipeWireGrabber::PipeWireGrabber(QObject *parent) : IScreenGrabber(parent)
 {
     pw_init(nullptr, nullptr);
 }

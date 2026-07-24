@@ -15,6 +15,15 @@ find_package(PkgConfig REQUIRED)
 # PipeWire frame capture is OPTIONAL: without it the kit builds fine, only
 # PipeWireGrabber is dropped (mirrors Unisic's CMakeLists).
 pkg_check_modules(PIPEWIRE IMPORTED_TARGET libpipewire-0.3)
+# X11 (XShm + XFixes) frame capture is OPTIONAL too: enables X11ShmGrabber, the
+# frame source chosen at runtime on an X11 session. Needs libX11 (core), libXext
+# (MIT-SHM: XShmGetImage) and libXfixes (hardware-cursor capture).
+pkg_check_modules(X11 IMPORTED_TARGET x11 xext xfixes)
+# Native X11 global hotkeys (XGrabKey) are a SEPARATE optional gate: they need
+# libX11 (grab + keysyms) and libxcb (the KeyPress event Qt hands the native
+# event filter), but NOT the XShm/XFixes pair the frame grabber wants. A
+# consumer can end up with hotkeys and no X11 recording, or the reverse.
+pkg_check_modules(XCBX11 IMPORTED_TARGET x11 xcb)
 
 qt_standard_project_setup(REQUIRES 6.5)
 qt_policy(SET QTP0001 NEW)
@@ -29,7 +38,15 @@ qt_add_library(unisic-kit STATIC
     src/SettingMacro.h
     src/capture/PortalRequest.h src/capture/PortalRequest.cpp
     src/capture/ScreenCastSession.h src/capture/ScreenCastSession.cpp
+    # Pure + header-only, so it costs nothing to always ship it: the one place
+    # that knows the Qt-portable -> X-keysym key vocabulary. X11Hotkeys grabs
+    # through it, and consumers that write desktop custom-shortcut stores
+    # (COSMIC RON, gsettings, xfconf, labwc rc.xml) parse chords with it.
+    src/hotkeys/ShortcutKeyMap.h
     src/media/FfmpegUtil.h src/media/FfmpegUtil.cpp
+    # The grabber base is always compiled/moc'd: GifRecorder connects to its
+    # signals through the base pointer regardless of which backends are built.
+    src/record/IScreenGrabber.h
     src/theme/ThemeController.h src/theme/ThemeController.cpp
     src/theme/ThemeJson.h
     src/theme/IconImageProvider.h src/theme/IconImageProvider.cpp
@@ -83,7 +100,7 @@ qt_add_qml_module(unisic-kit
 # (ThemeController.h) by basename.
 target_include_directories(unisic-kit
     PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
-    PRIVATE src/capture src/record src/theme src/media)
+    PRIVATE src/capture src/record src/theme src/media src/hotkeys)
 
 target_link_libraries(unisic-kit PUBLIC
     Qt6::Core Qt6::Gui Qt6::Quick Qt6::Qml Qt6::DBus)
@@ -102,6 +119,31 @@ if(PIPEWIRE_FOUND)
     message(STATUS "unisic-kit: PipeWire capture enabled (HAVE_PIPEWIRE=ON)")
 else()
     message(WARNING "libpipewire-0.3 not found — PipeWireGrabber (screen frame capture) will be unavailable")
+endif()
+
+# X11 frame capture (XShmGrabber). Additive: the Wayland/PipeWire path is
+# untouched; this backend is only selected at runtime on an X11 session.
+if(X11_FOUND)
+    target_sources(unisic-kit PRIVATE
+        src/record/X11ShmGrabber.h src/record/X11ShmGrabber.cpp)
+    target_link_libraries(unisic-kit PUBLIC PkgConfig::X11)
+    target_compile_definitions(unisic-kit PUBLIC HAVE_X11)
+    message(STATUS "unisic-kit: X11 (XShm) screen capture enabled (HAVE_X11=ON)")
+else()
+    message(STATUS "unisic-kit: X11 capture disabled (needs libX11 + libXext + libXfixes) - X11-session recording unavailable")
+endif()
+
+# Native X11 global hotkeys (X11Hotkeys). Additive as well: the KGlobalAccel and
+# GlobalShortcuts-portal paths a consumer owns are untouched - this backend is
+# only selected at runtime on an xcb session, and only where those are absent.
+if(XCBX11_FOUND)
+    target_sources(unisic-kit PRIVATE
+        src/hotkeys/X11Hotkeys.h src/hotkeys/X11Hotkeys.cpp)
+    target_link_libraries(unisic-kit PUBLIC PkgConfig::XCBX11)
+    target_compile_definitions(unisic-kit PUBLIC HAVE_X11_HOTKEYS)
+    message(STATUS "unisic-kit: X11 global hotkeys enabled (HAVE_X11_HOTKEYS=ON)")
+else()
+    message(STATUS "unisic-kit: X11 global hotkeys disabled (needs libX11 + libxcb) - non-KDE X11 falls back to portal/compositor binds")
 endif()
 
 # Optional: KWin-native screencasting (zkde_screencast_unstable_v1 — the
