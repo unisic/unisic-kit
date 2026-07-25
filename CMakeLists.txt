@@ -97,6 +97,7 @@ qt_add_qml_module(unisic-kit
         qml/components/ToolChip.qml
         qml/components/MiddleScroll.qml
         qml/components/WheelBoost.qml
+        qml/components/FocusScroll.qml
         qml/components/VideoPreview.qml
 )
 
