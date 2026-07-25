@@ -52,11 +52,13 @@ qt_add_library(unisic-kit STATIC
     src/theme/IconImageProvider.h src/theme/IconImageProvider.cpp
 )
 
-# Theme.qml is a QML singleton; ThemeController/IconImageProvider register
-# declaratively via QML_ELEMENT/QML_SINGLETON — do NOT add any imperative
+# Theme.qml, UKeys.qml and UFlyout.qml are QML singletons;
+# ThemeController/IconImageProvider register declaratively via
+# QML_ELEMENT/QML_SINGLETON - do NOT add any imperative
 # qmlRegisterSingletonInstance into this URI (it would clobber the module's
 # other registered types).
-set_source_files_properties(qml/Theme.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
+set_source_files_properties(qml/Theme.qml qml/UKeys.qml qml/UFlyout.qml
+                            PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 
 qt_add_qml_module(unisic-kit
     URI Unisic.Kit
@@ -67,6 +69,8 @@ qt_add_qml_module(unisic-kit
     OUTPUT_DIRECTORY qmlmod/Unisic/Kit
     QML_FILES
         qml/Theme.qml
+        qml/UKeys.qml
+        qml/UFlyout.qml
         qml/components/UButton.qml
         qml/components/UCard.qml
         qml/components/UIcon.qml
