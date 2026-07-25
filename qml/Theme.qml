@@ -196,6 +196,14 @@ QtObject {
     readonly property color keystrokeBg:     pal.keystrokeBg
     readonly property color keystrokeText:   pal.keystrokeText
 
+    // Keyboard-focus indicator. DERIVED from `accent` rather than added to the
+    // palette schema on purpose: every theme (including a user's JSON) then
+    // gets a ring that already matches its own accent, and ThemeJson.h needs no
+    // new optional key. The 2 px width is the house style UTextField and
+    // UShortcutRecorder already used before there was a shared token.
+    readonly property color focusRing:      pal.accent
+    readonly property int   focusRingWidth: 2
+
     // Geometry — generous SwiftUI-like rounding
     readonly property int radiusS: 8
     readonly property int radiusM: 12

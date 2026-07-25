@@ -82,6 +82,7 @@ qt_add_qml_module(unisic-kit
         qml/components/UConfirmDialog.qml
         qml/components/UColorPopup.qml
         qml/components/UHoverTip.qml
+        qml/components/UFocusRing.qml
         qml/components/USwitch.qml
         qml/components/USlider.qml
         qml/components/USettingRow.qml
