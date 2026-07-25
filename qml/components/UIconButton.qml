@@ -6,10 +6,21 @@ Rectangle {
     property string icon: ""
     property string iconName: ""
     property string tooltip: ""
-    property bool active: false
+    // Tri-state: see the Accessible block below. Undefined is falsy, so every
+    // `active ? … : …` binding in here reads it exactly as it read false.
+    property var active
     property int iconSize: 18
+    // Icon-only control: the tooltip is the ONLY user-visible label, so it is
+    // also the default spoken name. `accessibleName` overrides it for the
+    // handful of buttons that carry no tooltip at all.
+    property string accessibleName: ""
+    property string accessibleDescription: ""
     readonly property alias hovered: mouse.containsMouse
     signal clicked()
+
+    readonly property string _accName: accessibleName !== "" ? accessibleName : tooltip
+
+    function _activate() { if (root.enabled) root.clicked() }
 
     width: 38; height: 38
     radius: Theme.radiusM
@@ -41,7 +52,7 @@ Rectangle {
         anchors.fill: parent
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
-        onClicked: if (root.enabled) root.clicked()
+        onClicked: root._activate()
     }
 
     UHoverTip {
@@ -49,4 +60,26 @@ Rectangle {
         text: root.tooltip
         show: mouse.containsMouse
     }
+
+    activeFocusOnTab: enabled
+    Keys.onSpacePressed: (e) => UKeys.activate(e, root._activate)
+    Keys.onReturnPressed: (e) => UKeys.activate(e, root._activate)
+    Keys.onEnterPressed: (e) => UKeys.activate(e, root._activate)
+
+    Accessible.role: Accessible.Button
+    Accessible.name: root._accName
+    // Only what the caller adds on top: mirroring the tooltip here would make a
+    // screen reader read the same sentence twice (it is already the name).
+    Accessible.description: root.accessibleDescription
+    Accessible.focusable: root.activeFocusOnTab
+    // `active` is this control's pressed-in/toggled look (tool selected, panel
+    // open) - report it so the state is audible, not just visible. Tri-state,
+    // same rule as ToolChip and ColorDot: unset means a plain command button,
+    // and a command must not carry a checked state with no checkable to
+    // explain it (the Settings gear and the title-bar buttons are commands).
+    Accessible.checkable: root.active !== undefined
+    Accessible.checked: root.active === true
+    Accessible.onPressAction: root._activate()
+
+    UFocusRing { }
 }

@@ -10,7 +10,11 @@ Rectangle {
     property string text: ""
     property string iconName: ""
     property bool checked: false
+    property string accessibleName: ""
+    property string accessibleDescription: ""
     signal clicked()
+
+    function _activate() { if (chip.enabled) chip.clicked() }
 
     height: 28
     width: chipRow.implicitWidth + 24
@@ -46,6 +50,25 @@ Rectangle {
     MouseArea {
         anchors.fill: parent
         cursorShape: Qt.PointingHandCursor
-        onClicked: chip.clicked()
+        onClicked: chip._activate()
     }
+
+    activeFocusOnTab: enabled
+    Keys.onSpacePressed: (e) => UKeys.activate(e, chip._activate)
+    Keys.onReturnPressed: (e) => UKeys.activate(e, chip._activate)
+    Keys.onEnterPressed: (e) => UKeys.activate(e, chip._activate)
+
+    // CheckBox rather than RadioButton: the chip only reports clicks, the
+    // caller decides whether the set behaves as a radio group, and a chip used
+    // standalone (Favourites, Uploaded) really is an independent toggle.
+    Accessible.role: Accessible.CheckBox
+    Accessible.name: accessibleName !== "" ? accessibleName : text
+    Accessible.description: accessibleDescription
+    Accessible.focusable: chip.activeFocusOnTab
+    Accessible.checkable: true
+    Accessible.checked: chip.checked
+    Accessible.onToggleAction: chip._activate()
+    Accessible.onPressAction: chip._activate()
+
+    UFocusRing { inset: 1 }
 }

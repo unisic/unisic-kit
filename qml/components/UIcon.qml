@@ -45,4 +45,9 @@ Image {
     // and qApp->palette(), which must run on the GUI thread, not the async
     // QQuickPixmapReader thread.
     asynchronous: false
+
+    // Decoration inside an already-named control. An Image is exposed as a
+    // Graphic by default, so without this every button would announce a second,
+    // nameless child; the glyph carries no information the label does not.
+    Accessible.ignored: true
 }

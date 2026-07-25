@@ -24,6 +24,11 @@ Rectangle {
     radius: Theme.radiusM
     color: Qt.rgba(1, 1, 1, 0.10) // subtle unifying pill on the dark hover scrim
 
+    // Each half is its own tab stop and its own accessible button - they are two
+    // independent actions that merely share a background.
+    function _fireLeft() { if (root.enabled && root.leftEnabled) root.leftClicked() }
+    function _fireRight() { if (root.enabled && root.rightEnabled) root.rightClicked() }
+
     // LEFT half — copies the capture (image → clipboard image; recording → path).
     Rectangle {
         id: leftHalf
@@ -41,9 +46,22 @@ Rectangle {
             anchors.fill: parent
             hoverEnabled: true
             cursorShape: root.leftEnabled ? Qt.PointingHandCursor : Qt.ArrowCursor
-            onClicked: if (root.leftEnabled) root.leftClicked()
+            onClicked: root._fireLeft()
         }
         UHoverTip { anchor: leftHalf; text: root.leftTip; show: lm.containsMouse }
+
+        activeFocusOnTab: root.leftEnabled
+        Keys.onSpacePressed: (e) => UKeys.activate(e, root._fireLeft)
+        Keys.onReturnPressed: (e) => UKeys.activate(e, root._fireLeft)
+        Keys.onEnterPressed: (e) => UKeys.activate(e, root._fireLeft)
+
+        // Icon-only: the tip is the only visible label, so it is the name.
+        Accessible.role: Accessible.Button
+        Accessible.name: root.leftTip
+        Accessible.focusable: leftHalf.activeFocusOnTab
+        Accessible.onPressAction: root._fireLeft()
+
+        UFocusRing { inset: 1; hostRadius: root.radius }
     }
 
     Rectangle {
@@ -69,8 +87,20 @@ Rectangle {
             anchors.fill: parent
             hoverEnabled: true
             cursorShape: root.rightEnabled ? Qt.PointingHandCursor : Qt.ArrowCursor
-            onClicked: if (root.rightEnabled) root.rightClicked()
+            onClicked: root._fireRight()
         }
         UHoverTip { anchor: rightHalf; text: root.rightTip; show: rm.containsMouse }
+
+        activeFocusOnTab: root.rightEnabled
+        Keys.onSpacePressed: (e) => UKeys.activate(e, root._fireRight)
+        Keys.onReturnPressed: (e) => UKeys.activate(e, root._fireRight)
+        Keys.onEnterPressed: (e) => UKeys.activate(e, root._fireRight)
+
+        Accessible.role: Accessible.Button
+        Accessible.name: root.rightTip
+        Accessible.focusable: rightHalf.activeFocusOnTab
+        Accessible.onPressAction: root._fireRight()
+
+        UFocusRing { inset: 1; hostRadius: root.radius }
     }
 }

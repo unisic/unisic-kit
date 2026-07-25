@@ -12,7 +12,17 @@ Rectangle {
     property string iconName: ""        // themed icon name (preferred)
     property string variant: "filled"   // filled | tonal | ghost | danger
     property bool compact: false
+    // Spoken name. Icon-only buttons (text === "") have no visible label, so
+    // the caller supplies one here; otherwise the visible text IS the name.
+    property string accessibleName: ""
+    // Extra spoken context, e.g. what the action will do. Optional - a button
+    // whose label already says it needs nothing here.
+    property string accessibleDescription: ""
     signal clicked()
+
+    // The ONE activation path: pointer, keyboard and assistive tech all end up
+    // here, so they can never drift apart.
+    function _activate() { if (root.enabled) root.clicked() }
 
     readonly property color _fg: variant === "filled" ? Theme.textOnAccent
                                : variant === "danger" ? Theme.dangerText
@@ -81,6 +91,28 @@ Rectangle {
         anchors.fill: parent
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
-        onClicked: if (root.enabled) root.clicked()
+        onClicked: root._activate()
     }
+
+    // --- keyboard + assistive tech ---
+    // Only an UNMODIFIED Space/Return/Enter is consumed; every other key, and
+    // every chord, keeps bubbling to the window's key scope. UKeys owns that
+    // rule and explains it.
+    activeFocusOnTab: enabled
+    Keys.onSpacePressed: (e) => UKeys.activate(e, root._activate)
+    Keys.onReturnPressed: (e) => UKeys.activate(e, root._activate)
+    Keys.onEnterPressed: (e) => UKeys.activate(e, root._activate)
+
+    Accessible.role: Accessible.Button
+    Accessible.name: root.accessibleName !== "" ? root.accessibleName : root.text
+    Accessible.description: root.accessibleDescription
+    // Bound to the real focusability, never a literal `true` - the capture
+    // overlay and the history tiles opt controls out of the tab chain
+    // (activeFocusOnTab: false) while keeping their AT-SPI Press action, and
+    // promising assistive tech a keyboard route that is not there is worse than
+    // saying so. Every focusable control in the kit binds it the same way.
+    Accessible.focusable: root.activeFocusOnTab
+    Accessible.onPressAction: root._activate()
+
+    UFocusRing { }
 }

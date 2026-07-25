@@ -7,7 +7,11 @@ Rectangle {
     property string iconName: ""
     property string label: ""
     property bool active: false
+    property string accessibleName: ""
+    property string accessibleDescription: ""
     signal clicked()
+
+    function _activate() { if (root.enabled) root.clicked() }
 
     width: parent ? parent.width : 200
     height: 38
@@ -48,6 +52,23 @@ Rectangle {
         anchors.fill: parent
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
-        onClicked: root.clicked()
+        onClicked: root._activate()
     }
+
+    activeFocusOnTab: enabled
+    Keys.onSpacePressed: (e) => UKeys.activate(e, root._activate)
+    Keys.onReturnPressed: (e) => UKeys.activate(e, root._activate)
+    Keys.onEnterPressed: (e) => UKeys.activate(e, root._activate)
+
+    // ListItem, not PageTab: there is no PageTabList container around these,
+    // and ListItem carries the selected state a screen reader needs.
+    Accessible.role: Accessible.ListItem
+    Accessible.name: accessibleName !== "" ? accessibleName : label
+    Accessible.description: accessibleDescription
+    Accessible.focusable: root.activeFocusOnTab
+    Accessible.selectable: true
+    Accessible.selected: root.active
+    Accessible.onPressAction: root._activate()
+
+    UFocusRing { inset: 1 }
 }

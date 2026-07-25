@@ -70,6 +70,15 @@ Item {
         MouseArea {
             anchors.fill: parent
             onClicked: root.togglePlay()
+
+            // Named and pressable through AT-SPI, but deliberately NOT a tab
+            // stop and NOT bound to Space: the trim window owns Space as
+            // play/pause at window level, and a focusable surface here would
+            // steal it. The transport buttons below the frame are the keyboard
+            // path.
+            Accessible.role: Accessible.Button
+            Accessible.name: root.playing ? qsTr("Pause") : qsTr("Play")
+            Accessible.onPressAction: root.togglePlay()
         }
     }
 }

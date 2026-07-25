@@ -19,6 +19,10 @@ Rectangle {
     // suspend its global hotkeys meanwhile; false is also emitted from
     // Component.onDestruction so a torn-down recorder can never leave them off.
     property var formatKey: null
+    // Spoken name; defaults to the bound keys, or to the placeholder while the
+    // field is empty.
+    property string accessibleName: ""
+    property string accessibleDescription: ""
 
     signal recorded(string shortcut)
     signal captureStateChanged(bool active)
@@ -75,9 +79,28 @@ Rectangle {
         onClicked: root.beginRecording()
     }
 
+    // ONE handler for both states, deliberately. Dedicated
+    // Keys.onSpacePressed/onReturnPressed/onEnterPressed handlers cannot do
+    // this job: Qt dispatches them BEFORE Keys.onPressed, regardless of the
+    // modifiers held, and auto-accepts - so while the field was recording they
+    // stole exactly the keys the user was trying to BIND (Meta+Space,
+    // Ctrl+Return, a bare Space), formatKey never ran and the field sat on
+    // "Press shortcut..." forever.
     Keys.onPressed: (event) => {
-        if (!root.recording)
+        if (!root.recording) {
+            // Idle: an unmodified Space/Return/Enter starts recording (the
+            // keyboard equivalent of clicking the field) - the kit's usual
+            // activation rule, spelled out here because this handler owns both
+            // states. Everything else keeps bubbling, so a Tab-focused recorder
+            // never eats the window's own shortcuts.
+            if ((event.key === Qt.Key_Space || event.key === Qt.Key_Return
+                 || event.key === Qt.Key_Enter) && UKeys.unmodified(event)) {
+                root.beginRecording()
+                event.accepted = true
+            }
             return
+        }
+        // Recording: EVERY key is ours, Space/Return/Enter included.
         event.accepted = true
         if (event.key === Qt.Key_Escape) {
             root.endRecording()
@@ -98,6 +121,13 @@ Rectangle {
             root.endRecording()
         }
     }
+
+    Accessible.role: Accessible.HotkeyField
+    Accessible.name: root.accessibleName !== "" ? root.accessibleName
+                   : (root.shortcut.length > 0 ? root.shortcut : root.placeholder)
+    Accessible.description: root.accessibleDescription
+    Accessible.focusable: root.activeFocusOnTab
+    Accessible.onPressAction: root.beginRecording()
 
     onActiveFocusChanged: {
         if (!activeFocus)
