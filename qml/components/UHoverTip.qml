@@ -62,14 +62,17 @@ Item {
         ? anchor.mapToItem(parent, 0, 0) : Qt.point(0, 0)
     readonly property bool _above: _a.y > height + 10
 
-    x: {
-        if (!anchor || !parent) return 0
-        const raw = _a.x + (anchor.width - width) / 2
-        return Math.max(4, Math.min(raw, parent.width - width - 4)) // keep on screen
-    }
-    // Above the anchor, or below it when the top edge is too close.
+    // Centred on the anchor, then kept on screen. This is not a Popup, so it
+    // gets no positioner and no `margins` - it clamps through the same UFlyout
+    // rule by hand, in its own bindings (which re-run on every dependency, so
+    // there is nothing stale to re-place).
+    x: (!anchor || !parent) ? 0
+        : UFlyout.clampX(parent, _a.x + (anchor.width - width) / 2, width)
+    // Above the anchor, or below it when the top edge is too close - clamped
+    // either way, so a tip on a control at the very bottom cannot hang out.
     y: (!anchor || !parent) ? 0
-        : (_above ? _a.y - height - 8 : _a.y + anchor.height + 8)
+        : UFlyout.clampY(parent, _above ? _a.y - height - 8 : _a.y + anchor.height + 8,
+                         height)
     // A few pixels of travel on the way in, from the direction it opens.
     transform: Translate {
         y: tip._wanted ? 0 : (tip._above ? 4 : -4)

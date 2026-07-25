@@ -15,6 +15,11 @@ Popup {
 
     parent: Overlay.overlay
     anchors.centerIn: parent
+    // Centred, so the WINDOW is its anchor - the containment rule is the one
+    // every flyout follows, see UFlyout.qml. The width gutter below is its own,
+    // and wider than UFlyout.margin on purpose: a sheet that hugs the window
+    // edges reads as a panel.
+    margins: UFlyout.margin
     modal: true
     focus: true
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
@@ -30,83 +35,107 @@ Popup {
         border.color: Theme.divider
     }
 
-    contentItem: Column {
-        spacing: Theme.spacingM
-
-        Row {
-            width: parent.width
-            spacing: Theme.spacingS
-            UIcon {
-                name: "keyboard"
-                size: 20
-                color: Theme.accent
-                anchors.verticalCenter: parent.verticalCenter
-            }
-            Text {
-                text: qsTr("Keyboard shortcuts")
-                color: Theme.textPrimary
-                font.pixelSize: Theme.fontL
-                font.weight: Font.DemiBold
-                anchors.verticalCenter: parent.verticalCenter
-            }
-        }
-
-        Rectangle { width: parent.width; height: 1; color: Theme.divider }
+    // Scroller + column: the sheet grows one row per shortcut, so in a short
+    // window it scrolls instead of running off the bottom (UFlyout rule 3).
+    // With room it is inert - contentHeight equals the height.
+    contentItem: Flickable {
+        id: sheetFlick
+        implicitHeight: UFlyout.fitHeight(root.parent, sheetCol.implicitHeight
+                                          + root.topPadding + root.bottomPadding)
+                        - root.topPadding - root.bottomPadding
+        contentWidth: width
+        contentHeight: sheetCol.implicitHeight
+        clip: true
+        interactive: contentHeight > height
+        boundsBehavior: Flickable.StopAtBounds
 
         Column {
-            width: parent.width
-            spacing: Theme.spacingS
+            id: sheetCol
+            width: sheetFlick.width
+            spacing: Theme.spacingM
 
-            Repeater {
-                model: root.model
-                delegate: Row {
-                    required property var modelData
-                    width: parent.width
-                    height: 30
-                    spacing: Theme.spacingM
+            // On the contentItem, not on the Popup: the Accessible attached type
+            // only binds to an Item. The rows below are plain Text pairs, which a
+            // screen reader already reads in order - the sheet just needs an
+            // identity of its own.
+            Accessible.role: Accessible.Dialog
+            Accessible.name: qsTr("Keyboard shortcuts")
 
-                    Text {
-                        width: parent.width - keycaps.width - parent.spacing
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: modelData.label
-                        color: Theme.textSecondary
-                        font.pixelSize: Theme.fontM
-                        elide: Text.ElideRight
-                    }
+            Row {
+                width: parent.width
+                spacing: Theme.spacingS
+                UIcon {
+                    name: "keyboard"
+                    size: 20
+                    color: Theme.accent
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+                Text {
+                    text: qsTr("Keyboard shortcuts")
+                    color: Theme.textPrimary
+                    font.pixelSize: Theme.fontL
+                    font.weight: Font.DemiBold
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+            }
 
-                    Row {
-                        id: keycaps
-                        anchors.verticalCenter: parent.verticalCenter
-                        spacing: 4
+            Rectangle { width: parent.width; height: 1; color: Theme.divider }
 
-                        Repeater {
-                            model: modelData.keys
-                            delegate: Row {
-                                id: capRow
-                                required property string modelData
-                                required property int index
-                                spacing: 4
-                                Text {
-                                    visible: capRow.index > 0
-                                    text: "+"
-                                    color: Theme.textTertiary
-                                    font.pixelSize: Theme.fontS
-                                    anchors.verticalCenter: parent.verticalCenter
-                                }
-                                Rectangle {
-                                    width: Math.max(24, cap.implicitWidth + 14)
-                                    height: 24
-                                    radius: Theme.radiusS
-                                    color: Theme.surfaceHi
-                                    border.width: 1
-                                    border.color: Theme.divider
+            Column {
+                width: parent.width
+                spacing: Theme.spacingS
+
+                Repeater {
+                    model: root.model
+                    delegate: Row {
+                        required property var modelData
+                        width: parent.width
+                        height: 30
+                        spacing: Theme.spacingM
+
+                        Text {
+                            width: parent.width - keycaps.width - parent.spacing
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: modelData.label
+                            color: Theme.textSecondary
+                            font.pixelSize: Theme.fontM
+                            elide: Text.ElideRight
+                        }
+
+                        Row {
+                            id: keycaps
+                            anchors.verticalCenter: parent.verticalCenter
+                            spacing: 4
+
+                            Repeater {
+                                model: modelData.keys
+                                delegate: Row {
+                                    id: capRow
+                                    required property string modelData
+                                    required property int index
+                                    spacing: 4
                                     Text {
-                                        id: cap
-                                        anchors.centerIn: parent
-                                        text: capRow.modelData
-                                        color: Theme.textPrimary
-                                        font.pixelSize: Theme.fontS + 1
-                                        font.weight: Font.DemiBold
+                                        visible: capRow.index > 0
+                                        text: "+"
+                                        color: Theme.textTertiary
+                                        font.pixelSize: Theme.fontS
+                                        anchors.verticalCenter: parent.verticalCenter
+                                    }
+                                    Rectangle {
+                                        width: Math.max(24, cap.implicitWidth + 14)
+                                        height: 24
+                                        radius: Theme.radiusS
+                                        color: Theme.surfaceHi
+                                        border.width: 1
+                                        border.color: Theme.divider
+                                        Text {
+                                            id: cap
+                                            anchors.centerIn: parent
+                                            text: capRow.modelData
+                                            color: Theme.textPrimary
+                                            font.pixelSize: Theme.fontS + 1
+                                            font.weight: Font.DemiBold
+                                        }
                                     }
                                 }
                             }
@@ -114,16 +143,16 @@ Popup {
                     }
                 }
             }
-        }
 
-        Item { width: 1; height: Theme.spacingS }
+            Item { width: 1; height: Theme.spacingS }
 
-        Text {
-            width: parent.width
-            horizontalAlignment: Text.AlignHCenter
-            text: qsTr("Press Ctrl+/ or Esc to close")
-            color: Theme.textTertiary
-            font.pixelSize: Theme.fontS
+            Text {
+                width: parent.width
+                horizontalAlignment: Text.AlignHCenter
+                text: qsTr("Press Ctrl+/ or Esc to close")
+                color: Theme.textTertiary
+                font.pixelSize: Theme.fontS
+            }
         }
     }
 }
