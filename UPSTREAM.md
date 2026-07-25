@@ -150,6 +150,35 @@ kit-only surface re-applied on top, so the kit is now a strict superset:
   rotating pool under the same `++seq` contract as `PipeWireGrabber`, and polls
   `XFixesGetCursorImage` for `CursorSample`s because a root-window grab does not
   contain the hardware cursor. Optional `HAVE_X11`.
+- `qml/UKeys.qml` - the design system's ONE keyboard-activation rule
+  (`activate`/`claim`/`unmodified`), extracted from the guard that used to be
+  hand-copied into every focusable component. Consumers call it too: an app-side
+  control that writes its own `Keys.onSpacePressed`/`onReturnPressed`/
+  `onEnterPressed` must go through it, or a chord like Ctrl+Return dies on that
+  control. See the README section and the file's own comment (the only copy of
+  the explanation).
+- `qml/UFlyout.qml` - the design system's ONE flyout-containment rule
+  (`margin`/`gap`/`minRoom`, `fitWidth`/`fitHeight`, `clampX`/`clampY`,
+  `rooms`/`roomOn`, `sideAtOpen`/`sideNow`, `offsetY`), extracted from the
+  placement arithmetic that used to be hand-copied into
+  `UComboBox`/`UValueCombo`/`UMenuButton` - where it ran ONCE in
+  `onAboutToShow` and so could not survive a window resize, a growing list or a
+  `Flickable` scrolling under an open popup. Part of the work is Qt's: the
+  popups are parented to their ANCHOR (not to `Overlay.overlay`) and set
+  `margins`, which is what makes `QQuickPopupPositioner` re-clamp them on every
+  one of those events. The kit keeps what a clamp cannot do: capping a flyout to
+  the room on the side it is on (a clamp can only move it, so an uncapped list
+  gets slid over its own field), choosing that side once per opening and holding
+  it while it stays usable (re-choosing on every height change made an open
+  dropdown jump across its own field while the user typed in its search box),
+  and re-reading the fit as a BINDING that walks the anchor's parent chain. See
+  the README section and the file's own comment (the only copy of the
+  explanation, with the measurements behind each part).
+- `qml/components/UNameBridge.qml` - the design system's ONE accessible-name
+  bridge: pushes a row's caption into the mute control(s) next to it, as
+  bindings, pruning controls that go away. `USettingRow` carries one; hand-built
+  label+control rows in a consuming app add their own instead of re-implementing
+  it.
 - `src/hotkeys/X11Hotkeys.{h,cpp}` - passive `XGrabKey` root grabs on Qt's own X
   connection, delivered through a `QAbstractNativeEventFilter` (no second
   display, no thread). Grabs each combo across the Caps/Num lock mask variants,

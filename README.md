@@ -6,13 +6,13 @@ need in common, so they don't drift apart:
 
 - **C++ static library**
   - Portal `ScreenCastSession` (XDG Desktop Portal ScreenCast setup)
-  - `KWinScreencasting` (KWin-native zkde_screencast client — record a named
+  - `KWinScreencasting` (KWin-native zkde_screencast client - record a named
     output/region/window with no portal dialog; optional, needs the
     `X-KDE-Wayland-Interfaces=zkde_screencast_unstable_v1` desktop-file grant)
   - `PortalRequest` (portal D-Bus request/response handling)
   - `IScreenGrabber` (the backend-agnostic frame-source contract both grabbers
     implement, so a consumer's encoder holds one pointer either way)
-  - `PipeWireGrabber` (PipeWire frame capture — portal fd or default daemon)
+  - `PipeWireGrabber` (PipeWire frame capture - portal fd or default daemon)
   - `X11ShmGrabber` (XShm frame capture straight off the X server, the frame
     source on an X11 session where there is no working ScreenCast portal;
     optional, needs libX11 + libXext + libXfixes)
@@ -26,19 +26,22 @@ need in common, so they don't drift apart:
 
 - **`Unisic.Kit` QML module**
   - `Theme` singleton (colors, spacing, typography tokens)
+  - `UKeys` singleton (the one keyboard-activation rule - see below),
+    `UFlyout` singleton (the one flyout-containment rule - see below) and
+    `UNameBridge` (the one accessible-name bridge for label+control rows)
   - The `U*` component design system (`UButton`, `UCard`, `UIcon`,
     `UIconButton`, `USplitIconButton`, `UComboBox`, `UValueCombo`,
     `UMenuButton`, `UConfirmDialog`, `UColorPopup`, `UHoverTip`, `USwitch`,
     `USlider`, `USettingRow`, `UTextField`, `UFilterChip`, the hotkey editors
     `UShortcutRecorder`/`UShortcutList`/`UShortcutsHelp` (host app supplies
-    `formatKey` and reacts to `captureStateChanged` — see the files' doc
+    `formatKey` and reacts to `captureStateChanged` - see the files' doc
     comments), and supporting components like `ColorDot`, `SidebarItem`,
     `ToolChip`, `MiddleScroll`, `WheelBoost`, `VideoPreview`)
   - Symbolic icon set (`resources/icons/sym/`)
 
 ## License
 
-GPLv3 — see [LICENSE](LICENSE).
+GPLv3 - see [LICENSE](LICENSE).
 
 ## Building
 
@@ -46,10 +49,10 @@ Requires **C++20**, **Qt 6.5+**, and **CMake** (Ninja recommended).
 
 Build dependencies (Fedora package names; use your distro's equivalents):
 
-- `qt6-qtbase-devel` — Core, Gui, DBus
-- `qt6-qtdeclarative-devel` — Quick, Qml, the QML module tooling
-- `qt6-qtsvg-devel` — SVG image format plugin (renders the bundled symbolic icons)
-- `pipewire-devel` *(optional)* — enables `PipeWireGrabber` screen-frame capture.
+- `qt6-qtbase-devel` - Core, Gui, DBus
+- `qt6-qtdeclarative-devel` - Quick, Qml, the QML module tooling
+- `qt6-qtsvg-devel` - SVG image format plugin (renders the bundled symbolic icons)
+- `pipewire-devel` *(optional)* - enables `PipeWireGrabber` screen-frame capture.
   Without it the kit still builds; only `PipeWireGrabber` is dropped and a
   warning is printed at configure time.
 - `libX11-devel libXext-devel libXfixes-devel` *(optional)* - enables
@@ -100,7 +103,166 @@ engine.addImageProvider("icon", new IconImageProvider(nullptr));
 ```
 
 `ThemeController` and `Theme` register declaratively into the `Unisic.Kit`
-module — do not register them imperatively.
+module - do not register them imperatively.
+
+### Keyboard activation (`UKeys`)
+
+Every focusable control - in the kit **and in the consuming app** - routes its
+key handlers through the `UKeys` singleton, so the rule cannot drift between
+them. Qt dispatches `Keys.onSpacePressed` / `onReturnPressed` / `onEnterPressed`
+/ `onUpPressed` … *before* `Keys.onPressed`, regardless of the modifiers held,
+and auto-accepts them, so an unguarded control silently swallows the window's
+own chords (an editor's Ctrl+Enter dies the moment anything has focus).
+`UKeys` declines those and lets them keep bubbling, while masking out
+`KeypadModifier` so the numpad's own Enter still activates.
+
+```qml
+import Unisic.Kit
+
+activeFocusOnTab: enabled
+Keys.onSpacePressed:  (e) => UKeys.activate(e, root._activate)
+Keys.onReturnPressed: (e) => UKeys.activate(e, root._activate)
+Keys.onEnterPressed:  (e) => UKeys.activate(e, root._activate)
+```
+
+`_activate` is the control's single activation path - the same function the
+`MouseArea` and `Accessible.onPressAction` call. Two lower-level entry points
+cover the rest: `UKeys.claim(e)` is the same guard when a handler has more to do
+than call one function (`if (!UKeys.claim(e)) return`), and `UKeys.unmodified(e)`
+is the pure test for a plain `Keys.onPressed`, which arrives unaccepted and so
+needs no write to decline. The full explanation lives in `qml/UKeys.qml`; do not
+copy the modifier expression anywhere else.
+
+### Row labels (`UNameBridge`)
+
+A switch, a combo box, a slider and a bare text field are mute: the only thing
+that names them is the caption of the row they sit in. `UNameBridge` pushes that
+caption into them, so call sites do not repeat themselves. It is a plain
+`QtObject`, so it never joins a layout:
+
+```qml
+UNameBridge {
+    id: nameBridge
+    targets: [slot, footerSlot]   // the Items holding the controls
+    name: labelText.text
+    description: subText.text
+}
+...
+Item { id: slot; onChildrenChanged: nameBridge.refresh() }
+```
+
+A caption is one identity, so it can only be one control's name. A row holding
+exactly **one** control hands the caption over as that control's
+`accessibleName` (and the sub line as its description). A row whose slots hold
+**several** gives it to none of them - naming both a combo box and the Refresh
+button beside it "Application audio only" is worse than naming neither - so
+those keep the names they give themselves (`UButton.text`,
+`UIconButton.tooltip`, `ColorDot.dotColor`, a combo's current value) and the
+caption is pushed into their `accessibleDescription` instead, which is what
+tells three identical "Preview" buttons apart. A name set explicitly at the call
+site always wins and is never taken back.
+
+Each target is searched one wrapper deep, so a control inside the `Row`,
+`Loader` or `Repeater` a call site puts in the slot is found too; deeper than
+that belongs to a component that packs its own controls, and is left alone.
+
+The `onChildrenChanged` hook is required on every target - it picks up controls
+that arrive later and prunes the ones that go away; the bridge hooks the
+wrappers it looks through the same way, so a `Loader` that loads or a `Repeater`
+that re-models *inside* one still reaches it. Nothing else is:
+`name`/`description` are installed as bindings, so a `qsTr()` caption or a
+runtime-swapped hint stays live. `USettingRow` already carries one - hand-built
+rows add their own.
+
+### Flyout containment (`UFlyout`)
+
+Every flyout - the dropdown lists, the action menus, the centred popups and the
+hover tip - routes its geometry through the `UFlyout` singleton, so "a flyout
+never hangs off the window" cannot drift between them. A flyout is clamped
+inside the window on both axes with an 8px gutter and it shrinks - scrolling its
+own content - rather than growing past a window edge or over the control it
+belongs to. An anchored one opens below that control and above it when there is
+no room below; the side is chosen once per opening and then held for as long as
+it stays usable, so a list re-fits under a window resize without ever jumping
+across its own field while the user is working in it.
+
+Part of that is Qt's, and the split is what matters:
+
+```qml
+C.Popup {
+    id: popup
+    parent: root                                  // the ANCHOR, not the overlay
+    margins: UFlyout.margin                       // Qt clamps, on every change
+    property bool flyUp: false                    // the side, chosen at open
+    readonly property real flyWant: Math.min(entries.length * rowH + 58, 340)
+    readonly property var  flyFit: visible ? UFlyout.rooms(root, root._overlay, flyWant)
+                                           : null
+    onFlyFitChanged: flyUp = UFlyout.sideNow(flyUp, flyFit, opened)
+    height: UFlyout.fitHeight(root._overlay, flyWant, UFlyout.roomOn(flyFit, flyUp))
+    y: UFlyout.offsetY(popup, root, flyUp)
+    onAboutToShow: flyUp = UFlyout.sideAtOpen(root, root._overlay, flyWant)
+}
+```
+
+`QQuickPopup.margins` defaults to `-1`, which means *no clamping at all*; set it
+and Qt's positioner re-runs on the popup's own size changes, on the anchor's
+geometry, on every ancestor's geometry (a `Flickable` scrolling under an open
+list drags the list along with it) and on the window resizing. That is why the
+popup is parented to the anchor item and not to `Overlay.overlay` - and it costs
+nothing, because a popup's visual item is reparented into the window overlay
+when it opens whatever `parent` is, so it still escapes every `clip: true`
+ancestor.
+
+What is left for the kit is the three things Qt's clamp cannot do, because a
+clamp can only *move* a popup: the height cap (Qt only auto-resizes a popup with
+no explicit size, and the cap is against the room on the chosen side, not just
+the window, or a list on a low anchor is slid back inside straight over its own
+field), the above/below choice (a plain `Popup` has no flip), and re-reading the
+fit. That last one is a binding, not a signal: `UFlyout.rooms()` adds up `y`
+along the anchor's parent chain, so calling it from a binding captures a
+dependency on the window size, the anchor and every item in between - which
+`mapToItem()` cannot do. `sideNow()` is then the only thing allowed to change
+the side while the flyout is up, and it holds the current side until that side
+stops being usable. Plain overlay `Item`s that are not popups get no positioner
+at all, so they clamp through `UFlyout.clampX()`/`clampY()` in their own
+bindings. The full explanation, with the measurements behind each part, lives in
+`qml/UFlyout.qml`; do not copy the arithmetic anywhere else.
+
+### Wheel scrolling (`WheelBoost`)
+
+`MiddleScroll` and `WheelBoost` are declared as children of the `Flickable` they
+drive, and both stay out of everything else's way (wheel-only / middle-only,
+`z: -1`):
+
+```qml
+Flickable {
+    id: fl
+    MiddleScroll { flickable: fl }
+    WheelBoost { flickable: fl }
+}
+```
+
+`WheelBoost` gives a mouse wheel a fixed `stepPx` per notch (220 by default),
+ramps that up to `maxBoost` (3) while the notches keep arriving within
+`boostWindowMs` (300) of each other, caps any one notch at 90% of the viewport,
+and eases each step in over `settleMs` (110) so a boosted notch reads as motion
+rather than a jump. Touchpads are untouched by all of it: their `pixelDelta`
+stays 1:1 and unsmoothed. `settleMs: 0` restores the plain instant step and
+`maxBoost: 1` the plain fixed one. An easing step yields the view the moment
+anything else moves it, so the middle-click autoscroll beside it, a drag, or a
+`positionViewAtIndex` always wins.
+
+The default step suits a column of short rows. A view of **tall** rows should
+raise it at the call site rather than change the default - one whole tile per
+notch reads as crawling on a big window. Unisic's History grid asks for a row
+and a half, and for a third of the viewport once about four and a half rows fit:
+
+```qml
+WheelBoost {
+    flickable: grid
+    stepPx: Math.max(Math.round(grid.cellHeight * 1.5), Math.round(grid.height / 3))
+}
+```
 
 ### Cursor-metadata capture
 
@@ -117,7 +279,7 @@ buffers and, per frame, appends a `CursorSample` (`tMonoNs`, stream-pixel `x/y`,
 `visible`, `shapeId`) to an internal bounded buffer you drain with
 `takeCursorSamples()`; each distinct cursor bitmap is emitted once as
 `cursorShapeChanged(int id, QImage image, QPoint hotspot)` (emitted off the
-PipeWire thread — connect it queued/auto). `latestFrame()` takes an optional
+PipeWire thread - connect it queued/auto). `latestFrame()` takes an optional
 `qint64 *ptsNs` out-param stamped from the same `CLOCK_MONOTONIC` clock as the
 samples, so frames and cursor motion map onto one timeline. Requires the
 optional `pipewire-devel` build (`HAVE_PIPEWIRE`).
