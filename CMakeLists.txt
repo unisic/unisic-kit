@@ -86,6 +86,7 @@ qt_add_qml_module(unisic-kit
         qml/components/USwitch.qml
         qml/components/USlider.qml
         qml/components/USettingRow.qml
+        qml/components/UNameBridge.qml
         qml/components/UShortcutRecorder.qml
         qml/components/UShortcutList.qml
         qml/components/UShortcutsHelp.qml

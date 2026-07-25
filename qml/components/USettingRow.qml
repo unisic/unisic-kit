@@ -12,6 +12,16 @@ Rectangle {
     default property alias control: slot.data
     property alias footer: footerSlot.data
 
+    // The row's label speaks for the mute control next to it - UNameBridge owns
+    // that rule and explains it. Held by a property, not written as a child:
+    // this row's DEFAULT property is redirected to `slot`, so a plain child
+    // object would land in the caller's control slot instead of on the row.
+    readonly property UNameBridge nameBridge: UNameBridge {
+        targets: [slot, footerSlot]
+        name: labelText.text
+        description: subText.text
+    }
+
     // Slimmer than the Settings rows (8px vertical padding, 40px head): the
     // main pages must fit their whole content above the fold at the default
     // window size — Settings keeps its roomier internal SettingRow.
@@ -67,12 +77,16 @@ Rectangle {
                 anchors.verticalCenter: parent.verticalCenter
                 width: childrenRect.width
                 height: childrenRect.height
+                // Controls that arrive later (a Loader, a Repeater) still get
+                // named, and the ones that go away are dropped.
+                onChildrenChanged: row.nameBridge.refresh()
             }
         }
         Item {
             id: footerSlot
             width: parent.width
             height: childrenRect.height
+            onChildrenChanged: row.nameBridge.refresh()
         }
     }
 }
