@@ -24,6 +24,10 @@ Rectangle {
     // subtly different icon-menu control.
     property bool iconOnly: false
     property var actions: []
+    // Read-only for the caller: the menu is on the window overlay, so a trigger
+    // that lives in a hover-revealed strip has no other way to know it must
+    // stay up while its own menu is open.
+    readonly property bool menuOpen: popup.opened
     // Spoken name. Falls back to the visible text, or to the tooltip when the
     // trigger is icon-only and has no visible text at all.
     property string accessibleName: ""
