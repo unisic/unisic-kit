@@ -45,19 +45,52 @@ ThemeController::ThemeController(QObject *parent) : QObject(parent)
     reloadCustomThemes();
 }
 
+// Which shipped themes this folder has already been given, by file name. The
+// old ui/themesSeeded bool said only "seeding ran once", which is a claim about
+// the settings file and not about the folder - and the two travel separately.
+static const char *kSeededList = "ui/themesSeededFiles";
+static const char *kSeededFlag = "ui/themesSeeded";
+
+QStringList ThemeController::seededThemes() const
+{
+    return m_settings.value(QLatin1String(kSeededList)).toStringList();
+}
+
 void ThemeController::seedThemesFolder()
 {
-    // Copy the shipped decorative themes into the user folder ONCE (a flag, not
-    // a per-file existence check — so deleting a seeded theme makes it stay
-    // gone, it is not recreated every launch). qrc is only the seed SOURCE; the
-    // files the app actually reads are the loose ones on disk.
-    if (m_settings.value(QStringLiteral("ui/themesSeeded")).toBool())
-        return;
+    // Copy the shipped decorative themes into the user folder ONCE per file (a
+    // record of what was seeded, not a per-file existence check - so deleting a
+    // seeded theme makes it stay gone, it is not recreated every launch). qrc is
+    // only the seed SOURCE; the files the app actually reads are the loose ones
+    // on disk.
+    //
+    // A MISSING folder resets that record, whatever the settings say. The old
+    // single bool travelled to places the files did not: a config restored from
+    // a backup or a dotfiles repo, and a dev build's config, which is seeded
+    // key-by-key from the stable one. Both arrive with "already seeded" set and
+    // no themes folder at all, and the decorative themes then never appeared
+    // again on that machine (verified: ui/themesSeeded=true with no themes/ in
+    // both of this repo's own configs). Deleting the whole folder is therefore
+    // the deliberate way to get the shipped set back; deleting single files
+    // inside it still keeps them gone.
     const QString dir = themesFolder();
-    QDir().mkpath(dir);
+    const bool folderGone = !QDir(dir).exists();
+    QStringList seeded = folderGone ? QStringList() : seededThemes();
     const QDir qrc(QStringLiteral(":/resources/themes"));
     const QStringList shipped = qrc.entryList({QStringLiteral("*.json")}, QDir::Files);
+    // Upgrade path for a folder seeded by the bool: it predates the record, so
+    // everything shipped back then counts as delivered and a file the user
+    // deleted since must not come back.
+    if (!folderGone && seeded.isEmpty()
+        && m_settings.value(QLatin1String(kSeededFlag)).toBool()) {
+        m_settings.setValue(QLatin1String(kSeededList), shipped);
+        return;
+    }
+    QDir().mkpath(dir);
     for (const QString &name : shipped) {
+        if (seeded.contains(name))
+            continue;
+        seeded << name;
         const QString dest = dir + QLatin1Char('/') + name;
         if (QFile::exists(dest))
             continue; // never clobber a file the user already has
@@ -65,7 +98,10 @@ void ThemeController::seedThemesFolder()
         QFile::setPermissions(dest, QFileDevice::ReadOwner | QFileDevice::WriteOwner
                                         | QFileDevice::ReadGroup | QFileDevice::ReadOther);
     }
-    m_settings.setValue(QStringLiteral("ui/themesSeeded"), true);
+    m_settings.setValue(QLatin1String(kSeededList), seeded);
+    // Kept in step for a downgrade: an older build reads only this key, and
+    // without it would copy every shipped theme back on the next launch.
+    m_settings.setValue(QLatin1String(kSeededFlag), true);
 }
 
 bool ThemeController::eventFilter(QObject *watched, QEvent *event)

@@ -70,6 +70,11 @@ public:
     QStringList customThemeErrors() const { return m_customErrors; }
     // <config dir>/themes — next to unisic.conf, so a dev build gets its own.
     Q_INVOKABLE QString themesFolder() const;
+    // File names of the shipped themes already handed to this folder. A name
+    // in here with no file on disk means the user deleted it on purpose, which
+    // is the ONLY way to tell that apart from "never seeded here" - see
+    // seedThemesFolder().
+    QStringList seededThemes() const;
     // Creates the folder (seeding a commented example theme on first use),
     // opens it in the file manager, and starts watching it.
     Q_INVOKABLE void openThemesFolder();
@@ -106,7 +111,8 @@ private:
     void scheduleSystemBump();
     void scheduleCustomReload();
     void watchThemesFolder();
-    // Copy the shipped decorative themes into the user folder once (flag-guarded).
+    // Copy each shipped decorative theme into the user folder once, tracked per
+    // file so a deleted one stays deleted and a later addition still arrives.
     void seedThemesFolder();
 
     QString m_themeName;
