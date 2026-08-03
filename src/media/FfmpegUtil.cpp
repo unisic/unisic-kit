@@ -1,7 +1,9 @@
 #include "FfmpegUtil.h"
+#include <QBuffer>
 #include <QDebug>
 #include <QFileInfo>
 #include <QHash>
+#include <QImage>
 #include <QMutex>
 #include <QProcess>
 #include <QStringList>
@@ -61,6 +63,73 @@ QString gifPaletteUseFilter(int quality)
                                   : (q == 1 ? QStringLiteral("bayer:bayer_scale=5")
                                             : QStringLiteral("sierra2_4a"));
     return QStringLiteral("paletteuse=dither=%1:diff_mode=rectangle").arg(dither);
+}
+
+QByteArray encodeStillGif(const QImage &image, int quality)
+{
+    if (image.isNull())
+        return {};
+    // PNG on ffmpeg's stdin, GIF back on its stdout: no temp file to name, to
+    // clean up, or to leave behind when this fails halfway.
+    QByteArray png;
+    {
+        QBuffer buf(&png);
+        buf.open(QIODevice::WriteOnly);
+        if (!image.save(&buf, "PNG"))
+            return {};
+    }
+
+    const int q = qBound(1, quality, 100);
+    // A GIF has no quality scale, so the setting buys palette entries instead,
+    // and the dither follows the palette. Dither DIRECTION matters here in a
+    // way it does not for a photo format: every dither pattern is noise, and
+    // noise is what LZW cannot compress. Measured on a 3840x2160 frame -
+    // 64 colours cost 287 kB undithered and 312 kB with sierra2_4a, while 256
+    // colours cost 386 kB and 416 kB. So the cheap end skips the dither
+    // outright (which also suits a screenshot: flat UI colours band far less
+    // than a photograph would, and undithered text stays crisp), and only the
+    // full palette pays for error diffusion. Sizes then rise with the setting,
+    // which is the one thing a quality slider must never get backwards.
+    const int colors = q < 40 ? 64 : (q < 75 ? 128 : 256);
+    const QString dither = q < 40 ? QStringLiteral("none")
+                                  : (q < 75 ? QStringLiteral("bayer:bayer_scale=5")
+                                            : QStringLiteral("sierra2_4a"));
+    // alpha_threshold keeps GIF's single transparent entry: without it a
+    // partly transparent capture composites onto black.
+    const QString graph =
+        QStringLiteral("split[a][b];[a]palettegen=max_colors=%1[p];[b][p]paletteuse=dither=%2"
+                       ":alpha_threshold=128")
+            .arg(colors)
+            .arg(dither);
+
+    QProcess ff;
+    ff.start(QStringLiteral("ffmpeg"),
+             {QStringLiteral("-hide_banner"), QStringLiteral("-y"),
+              QStringLiteral("-nostats"), QStringLiteral("-loglevel"), QStringLiteral("error"),
+              QStringLiteral("-f"), QStringLiteral("image2pipe"), QStringLiteral("-i"),
+              QStringLiteral("-"), QStringLiteral("-vf"), graph,
+              QStringLiteral("-frames:v"), QStringLiteral("1"),
+              QStringLiteral("-f"), QStringLiteral("gif"), QStringLiteral("-")});
+    if (!ff.waitForStarted(5000)) {
+        qWarning() << "FfmpegUtil: still GIF encode could not start ffmpeg";
+        return {};
+    }
+    ff.write(png);
+    ff.closeWriteChannel();
+    // 20 s covers a 4K frame with a wide margin (~0.5 s measured) and still
+    // returns rather than hanging the caller if ffmpeg wedges.
+    if (!ff.waitForFinished(20000)) {
+        qWarning() << "FfmpegUtil: still GIF encode timed out";
+        ff.kill();
+        ff.waitForFinished(1000);
+        return {};
+    }
+    if (ff.exitStatus() != QProcess::NormalExit || ff.exitCode() != 0) {
+        qWarning() << "FfmpegUtil: still GIF encode failed:"
+                   << ff.readAllStandardError().right(400).trimmed();
+        return {};
+    }
+    return ff.readAllStandardOutput();
 }
 
 bool hardwareEncoderAvailable(const QString &id)

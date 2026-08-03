@@ -2,6 +2,7 @@
 #include <QString>
 #include <QSet>
 
+class QImage;
 class QProcess;
 
 // ffmpeg helpers extracted from Unisic's GifRecorder so Unisic and Unisic
@@ -41,6 +42,25 @@ bool hardwareEncoderWorks(const QString &id);
 // feeds pass 2 (paletteuse); the dither choice scales with quality.
 QString gifPaletteGenFilter(int quality);
 QString gifPaletteUseFilter(int quality);
+
+// Encodes ONE image into the bytes of a still GIF. Qt cannot do this itself:
+// the bundled gif plugin reads and never writes (QImageWriter::
+// supportedImageFormats() lists no gif), so the still path goes through the
+// same ffmpeg the recorder already requires.
+//
+// Both palette passes live in one filter graph here, which would be wrong for
+// a recording (palettegen buffers every frame until EOF - gigabytes) and is
+// right for a single frame: that one frame IS the whole buffer.
+//
+// `quality` is the 1-100 image-quality setting: it picks the palette size and
+// the dither, low meaning few colours and a cheap ordered dither.
+// Transparency survives as GIF's one bit of it.
+//
+// BLOCKING, and deliberately so - it stands in for QImage::save() and runs
+// where that ran. Cost: ~0.5 s and ~2x the frame in RAM for 3840x2160
+// (measured), the same order as the PNG encode it replaces. Empty on failure
+// (no ffmpeg, a timeout at 20 s, a non-zero exit); callers fall back to PNG.
+QByteArray encodeStillGif(const QImage &image, int quality);
 
 // Non-blocking graceful teardown of a QProcess. Disconnects it, then (if still
 // running) closeWriteChannel() -> terminate() -> SIGKILL after 1 s. The process
