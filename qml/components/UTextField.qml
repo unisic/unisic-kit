@@ -42,13 +42,29 @@ Rectangle {
     // a typing shortcut, not a mode: `caretBack` is how many characters back
     // from the end the caret belongs, so inserting "$json:$" leaves it inside
     // the token where the path goes.
+    //
+    // A chip clicked while the caret is still parked inside the token the
+    // PREVIOUS chip typed steps past that token first. Otherwise two clicks
+    // nest one variable inside another - "$json:" + "$regex:" came out as
+    // "$json:$regex:$$", which no extractor resolves, and every further click
+    // piled another orphaned "$" on the end (user-reported). Only that exact
+    // caret counts as parked: move it, or type in the token, and the chip goes
+    // where the caret is, because then the position is the user's own choice.
+    property int parkedCaret: -1   // where the last chip left the caret
+    property int parkedEnd: -1     // end of the token it left it inside
     function insertToken(token, caretBack) {
         input.forceActiveFocus()
         if (input.selectionStart !== input.selectionEnd)
             input.remove(input.selectionStart, input.selectionEnd)
+        if (root.parkedCaret >= 0 && input.cursorPosition === root.parkedCaret
+            && root.parkedEnd <= input.text.length)
+            input.cursorPosition = root.parkedEnd
         const at = input.cursorPosition
         input.insert(at, token)
-        input.cursorPosition = at + token.length - (caretBack || 0)
+        const back = caretBack || 0
+        input.cursorPosition = at + token.length - back
+        root.parkedCaret = back > 0 ? input.cursorPosition : -1
+        root.parkedEnd = at + token.length
         // insert() is not typing, so textEdited never fires for it - without
         // this a caller that only listens to `edited` would miss the change.
         root.edited(input.text)
@@ -72,6 +88,65 @@ Rectangle {
         anchors.verticalCenter: parent.verticalCenter
     }
 
+    // The pills live OUTSIDE the TextInput, before it so they paint behind the
+    // glyphs. Inside they were children of a clipping item, and a pill drawn
+    // wider than its text lost exactly that padding to the clip: a flat cut
+    // where the rounded end belonged, which read as the pill running out of the
+    // field. This box is the input's rect grown by that padding, so the pill
+    // keeps its shape and a token scrolled out of view still loses its half.
+    Item {
+        id: pillBox
+        readonly property int padX: 3
+        readonly property int padY: 1
+        x: input.x - padX
+        y: input.y - padY
+        width: input.width + 2 * padX
+        height: input.height + 2 * padY
+        clip: true
+
+        Repeater {
+            model: input.tokenRanges
+            Rectangle {
+                required property var modelData
+                required property int index
+                // Each pill takes at most half the blank next to it, so two
+                // never claim the same pixels. "$text$$text$" is two variables
+                // with nothing between them, and pills grown by padX regardless
+                // overlapped by twice that: their rounded borders crossed inside
+                // the overlap and a row of tokens read as a scribble
+                // (user-reported). A single space between two of them is the
+                // same bug, 4 px wide.
+                readonly property int padL: {
+                    void input.tokenRev
+                    return Math.min(pillBox.padX, Math.floor(input.tokenGap(index) / 2))
+                }
+                readonly property int padR: {
+                    void input.tokenRev
+                    return Math.min(pillBox.padX, Math.floor(input.tokenGap(index + 1) / 2))
+                }
+                readonly property rect box: {
+                    void input.tokenRev // dependency only: positionToRectangle
+                                        // is a function, so without this the
+                                        // pills would stay put while the field
+                                        // scrolls
+                    const a = input.positionToRectangle(modelData[0])
+                    const b = input.positionToRectangle(modelData[1])
+                    return Qt.rect(a.x, a.y, b.x - a.x, a.height)
+                }
+                // pillBox already carries padX as its own offset, so the token's
+                // left edge sits at box.x + padX in it.
+                x: box.x + pillBox.padX - padL
+                y: box.y
+                width: box.width + padL + padR
+                height: box.height + 2 * pillBox.padY
+                radius: Theme.radiusS
+                color: Theme.alpha(Theme.accent, 0.18)
+                border.width: 1
+                border.color: Theme.alpha(Theme.accent, 0.5)
+            }
+        }
+    }
+
     TextInput {
         id: input
         anchors.fill: parent
@@ -82,7 +157,12 @@ Rectangle {
         font.pixelSize: Theme.fontM
         clip: true
         selectionColor: Theme.tertiary
-        onTextEdited: root.edited(text)
+        onTextEdited: {
+            // Typing is the user taking the caret back, so the next chip goes
+            // exactly where they put it.
+            root.parkedCaret = -1
+            root.edited(text)
+        }
         onAccepted: root.accepted()
 
         // QML TextInput defaults to activeFocusOnTab FALSE, so until now every
@@ -115,39 +195,21 @@ Rectangle {
             }
             return out
         }
+        // Pixels of blank before token `i`. Outside the list it is the field's
+        // own inset, which is always wider than a pill's padding.
+        function tokenGap(i) {
+            const r = tokenRanges
+            if (i <= 0 || i >= r.length)
+                return 2 * pillBox.padX
+            return positionToRectangle(r[i][0]).x - positionToRectangle(r[i - 1][1]).x
+        }
+
         // Bumped by everything that can move a token's pixels. The text is the
         // obvious one; the horizontal scroll is the other, and a TextInput only
         // exposes it through the caret's rectangle.
         property int tokenRev: 0
         onTextChanged: tokenRev++
         onCursorRectangleChanged: tokenRev++
-
-        Repeater {
-            model: input.tokenRanges
-            Rectangle {
-                // Behind the glyphs, and clipped by the TextInput, so a token
-                // scrolled half out of view loses exactly half its pill.
-                z: -1
-                required property var modelData
-                readonly property rect box: {
-                    void input.tokenRev // dependency only: positionToRectangle
-                                        // is a function, so without this the
-                                        // pills would stay put while the field
-                                        // scrolls
-                    const a = input.positionToRectangle(modelData[0])
-                    const b = input.positionToRectangle(modelData[1])
-                    return Qt.rect(a.x, a.y, b.x - a.x, a.height)
-                }
-                x: box.x - 3
-                y: box.y - 1
-                width: box.width + 6
-                height: box.height + 2
-                radius: Theme.radiusS
-                color: Theme.alpha(Theme.accent, 0.18)
-                border.width: 1
-                border.color: Theme.alpha(Theme.accent, 0.5)
-            }
-        }
     }
     Text {
         id: placeholderText
