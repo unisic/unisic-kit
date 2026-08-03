@@ -99,6 +99,7 @@ qt_add_qml_module(unisic-kit
         qml/components/WheelBoost.qml
         qml/components/FocusScroll.qml
         qml/components/VideoPreview.qml
+        qml/components/UWindowResizer.qml
 )
 
 # PUBLIC src/ so consumers include <capture/ScreenCastSession.h>,
