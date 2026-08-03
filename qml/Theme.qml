@@ -108,7 +108,19 @@ QtObject {
             countdownBg: d.countdownBg !== undefined ? d.countdownBg : Qt.rgba(0, 0, 0, 0.55),
             countdownNumber: d.countdownNumber !== undefined ? d.countdownNumber : d.accent,
             keystrokeBg: d.keystrokeBg !== undefined ? d.keystrokeBg : Qt.rgba(0, 0, 0, 0.69),
-            keystrokeText: d.keystrokeText !== undefined ? d.keystrokeText : "#FFFFFF"
+            keystrokeText: d.keystrokeText !== undefined ? d.keystrokeText : "#FFFFFF",
+            // Capture-mode identity (selection frame, screen edge, mode badge).
+            // Same reasoning as the recording tokens: they sit over a frozen
+            // screenshot, so they are fixed hues rather than palette-derived,
+            // and they only ever reinforce a word that already says the mode -
+            // colour alone would carry nothing for a colour-blind user.
+            // A plain screenshot keeps the accent, so the common case looks
+            // exactly as it always has.
+            modeShot: d.modeShot !== undefined ? d.modeShot : d.accent,
+            modeMeasure: d.modeMeasure !== undefined ? d.modeMeasure : "#4FC3F7",
+            modeOcr: d.modeOcr !== undefined ? d.modeOcr : "#5AD17A",
+            modeGif: d.modeGif !== undefined ? d.modeGif : "#FFB020",
+            modeVideo: d.modeVideo !== undefined ? d.modeVideo : "#FF4D4D"
         }
     }
 
@@ -224,6 +236,25 @@ QtObject {
     readonly property color countdownNumber: pal.countdownNumber
     readonly property color keystrokeBg:     pal.keystrokeBg
     readonly property color keystrokeText:   pal.keystrokeText
+
+    // Capture-mode identity tokens (overlay badge + frame).
+    readonly property color modeShot:    pal.modeShot
+    readonly property color modeMeasure: pal.modeMeasure
+    readonly property color modeOcr:     pal.modeOcr
+    readonly property color modeGif:     pal.modeGif
+    readonly property color modeVideo:   pal.modeVideo
+    // The mode colour for an OverlayController::purposeName() string. Kept here
+    // and not in the overlay so a theme that adds a mode colour has one place
+    // to be read from.
+    function modeColor(purpose) {
+        switch (purpose) {
+        case "measure": return modeMeasure
+        case "ocr":     return modeOcr
+        case "gif":     return modeGif
+        case "video":   return modeVideo
+        }
+        return modeShot
+    }
 
     // Keyboard-focus indicator. DERIVED from `accent` rather than added to the
     // palette schema on purpose: every theme (including a user's JSON) then

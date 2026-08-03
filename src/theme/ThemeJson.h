@@ -46,7 +46,11 @@ inline QStringList optionalColorKeys()
             QStringLiteral("recDot"), QStringLiteral("recordFrameContrast"),
             QStringLiteral("countdownBg"),
             QStringLiteral("countdownNumber"), QStringLiteral("keystrokeBg"),
-            QStringLiteral("keystrokeText")};
+            QStringLiteral("keystrokeText"),
+            // Capture-mode identity (overlay badge + frame).
+            QStringLiteral("modeShot"), QStringLiteral("modeMeasure"),
+            QStringLiteral("modeOcr"), QStringLiteral("modeGif"),
+            QStringLiteral("modeVideo")};
 }
 
 // "#RGB", "#RRGGBB", "#AARRGGBB" or an SVG color name — whatever QColor's
