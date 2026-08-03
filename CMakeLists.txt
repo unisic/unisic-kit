@@ -92,6 +92,7 @@ qt_add_qml_module(unisic-kit
         qml/components/UShortcutsHelp.qml
         qml/components/UTextField.qml
         qml/components/UFilterChip.qml
+        qml/components/UVarBar.qml
         qml/components/ColorDot.qml
         qml/components/SidebarItem.qml
         qml/components/ToolChip.qml
