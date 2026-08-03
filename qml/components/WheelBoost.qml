@@ -109,6 +109,34 @@ MouseArea {
             glide.start()
     }
 
+    // A press freezes the view. The glide is short, but it is still motion, and
+    // this project's one load-bearing layout rule is that nothing moves under
+    // the pointer: a click that lands while the tail of a wheel step is still
+    // running has its target slide out from under it between press and release,
+    // and a MouseArea only emits `clicked` when the release is still inside it.
+    // Small controls lose that race first - a 50x30 switch is gone after 15 px
+    // of glide - which reads as "this switch cannot be toggled".
+    //
+    // A plain Item, NOT a MouseArea, and a PointHandler, NOT a TapHandler:
+    // PointHandler is the one handler that only ever takes a PASSIVE grab, so
+    // the press is observed and passed on untouched. TapHandler is not - even
+    // with gesturePolicy: DragThreshold it swallowed the click outright, which
+    // tests/WheelBoostTest.cpp caught (the switch became unclickable in a
+    // different way). The catcher has to sit ABOVE the content: events are
+    // offered per item, top-most first, so from behind - like the wheel area
+    // itself, at z:-1 - it would never see a press that lands on a control.
+    // Nothing is drawn and no hover is claimed, so it stays invisible to
+    // everything else.
+    Item {
+        parent: area.parent
+        anchors.fill: parent
+        z: 1e6
+        PointHandler {
+            acceptedButtons: Qt.AllButtons
+            onActiveChanged: if (active) glide.stop()
+        }
+    }
+
     Timer {
         id: glide
         interval: 16

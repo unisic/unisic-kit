@@ -45,6 +45,13 @@ Rectangle {
 
     MouseArea {
         anchors.fill: parent
+        // A few pixels of slop around a 50x30 pill. Every row that holds one is
+        // at least 40 px tall and the switch is alone at its right end, so the
+        // margin lands on the row's own padding and can reach nothing else -
+        // the same trick the Settings help badge uses. Clicks that graze the
+        // edge (and the last pixels of a still-settling scroll) land on the
+        // switch instead of on the row behind it.
+        anchors.margins: -5
         cursorShape: Qt.PointingHandCursor
         // Emit only — writing `checked` here would destroy the consumer's
         // declarative binding (e.g. checked: model.enabled) on first interaction;

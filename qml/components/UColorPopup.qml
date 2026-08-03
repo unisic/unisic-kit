@@ -70,7 +70,7 @@ Popup {
     // Percentages read better than 0..1 floats in a screen reader.
     function _pct(v) { return Math.round(v * 100) + "%" }
 
-    Overlay.modal: Rectangle { color: Qt.rgba(0, 0, 0, root.scrimOpacity) }
+    Overlay.modal: Rectangle { color: Theme.alpha(Theme.mediaBase, root.scrimOpacity) }
     background: Rectangle {
         radius: Theme.radiusL
         color: Theme.surface
@@ -99,6 +99,11 @@ Popup {
         clip: true
         interactive: contentHeight > height
         boundsBehavior: Flickable.StopAtBounds
+
+        // The wheel reaches nothing else in here: the SV square, the hue bar and
+        // the alpha bar are all drag surfaces, none of them takes a wheel.
+        MiddleScroll { flickable: pickerFlick }
+        WheelBoost { flickable: pickerFlick }
 
         Column {
             id: pickerCol
@@ -161,13 +166,13 @@ Popup {
                 }
                 Rectangle { // marker
                     width: 14; height: 14; radius: 7
-                    border.width: 2; border.color: "#ffffff"
+                    border.width: 2; border.color: Theme.mediaText
                     color: "transparent"
                     x: root.sat * parent.width - width / 2
                     y: (1 - root.val) * parent.height - height / 2
                     Rectangle {
                         anchors.fill: parent; anchors.margins: 2; radius: 5
-                        border.width: 1; border.color: "#80000000"; color: "transparent"
+                        border.width: 1; border.color: Theme.alpha(Theme.mediaBase, 0.5); color: "transparent"
                     }
                 }
                 MouseArea {
@@ -227,7 +232,7 @@ Popup {
                     y: -2
                     x: root.hue * parent.width - width / 2
                     color: "transparent"
-                    border.width: 2; border.color: "#ffffff"
+                    border.width: 2; border.color: Theme.mediaText
                 }
                 MouseArea {
                     anchors.fill: parent
@@ -287,7 +292,7 @@ Popup {
                     y: -2
                     x: root.alpha * parent.width - width / 2
                     color: "transparent"
-                    border.width: 2; border.color: "#ffffff"
+                    border.width: 2; border.color: Theme.mediaText
                 }
                 MouseArea {
                     anchors.fill: parent

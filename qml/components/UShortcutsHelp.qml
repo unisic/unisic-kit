@@ -26,7 +26,7 @@ Popup {
     width: Math.min(460, parent ? parent.width - 2 * Theme.spacingXL : 460)
     padding: Theme.spacingXL
 
-    Overlay.modal: Rectangle { color: Qt.rgba(0, 0, 0, 0.45) }
+    Overlay.modal: Rectangle { color: Theme.modalScrim }
 
     background: Rectangle {
         radius: Theme.radiusL
@@ -48,6 +48,9 @@ Popup {
         clip: true
         interactive: contentHeight > height
         boundsBehavior: Flickable.StopAtBounds
+
+        MiddleScroll { flickable: sheetFlick }
+        WheelBoost { flickable: sheetFlick }
 
         Column {
             id: sheetCol
