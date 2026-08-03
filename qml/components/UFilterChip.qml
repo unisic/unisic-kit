@@ -9,7 +9,15 @@ Rectangle {
 
     property string text: ""
     property string iconName: ""
-    property bool checked: false
+    // TOGGLE or COMMAND, told apart the same way ToolChip tells them apart, and
+    // for the same reason. A filter binds `checked` and its filled-in look IS a
+    // state; a command chip (insert this variable) never touches it and just
+    // does its thing. `var`, not `bool`, exactly so "never set" stays different
+    // from "set to false": an unset `checked` is undefined, which is falsy for
+    // the colour bindings below and keeps the commands out of AT-SPI's
+    // checkable/checked pair, where they would announce as toggles that are
+    // permanently off.
+    property var checked
     property string accessibleName: ""
     property string accessibleDescription: ""
     signal clicked()
@@ -60,13 +68,15 @@ Rectangle {
 
     // CheckBox rather than RadioButton: the chip only reports clicks, the
     // caller decides whether the set behaves as a radio group, and a chip used
-    // standalone (Favourites, Uploaded) really is an independent toggle.
-    Accessible.role: Accessible.CheckBox
+    // standalone (Favourites, Uploaded) really is an independent toggle. A
+    // command chip is a plain Button, per the `checked` note above.
+    readonly property bool _toggle: chip.checked !== undefined
+    Accessible.role: _toggle ? Accessible.CheckBox : Accessible.Button
     Accessible.name: accessibleName !== "" ? accessibleName : text
     Accessible.description: accessibleDescription
     Accessible.focusable: chip.activeFocusOnTab
-    Accessible.checkable: true
-    Accessible.checked: chip.checked
+    Accessible.checkable: _toggle
+    Accessible.checked: _toggle && chip.checked
     Accessible.onToggleAction: chip._activate()
     Accessible.onPressAction: chip._activate()
 
