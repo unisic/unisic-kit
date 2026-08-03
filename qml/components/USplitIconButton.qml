@@ -22,7 +22,7 @@ Rectangle {
     width: cell * 2 + 1
     height: cell
     radius: Theme.radiusM
-    color: Qt.rgba(1, 1, 1, 0.10) // subtle unifying pill on the dark hover scrim
+    color: Theme.alpha(Theme.mediaText, 0.10) // subtle unifying pill on the dark hover scrim
 
     // Each half is its own tab stop and its own accessible button - they are two
     // independent actions that merely share a background.
@@ -67,7 +67,7 @@ Rectangle {
     Rectangle {
         x: root.cell; width: 1; height: root.height - 12
         anchors.verticalCenter: parent.verticalCenter
-        color: Qt.rgba(1, 1, 1, 0.22)
+        color: Theme.alpha(Theme.mediaText, 0.22)
     }
 
     // RIGHT half — copies the shared URL (disabled until the capture is uploaded).

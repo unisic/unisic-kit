@@ -36,10 +36,15 @@ inline QStringList optionalColorKeys()
             QStringLiteral("danger"), QStringLiteral("success"),
             QStringLiteral("dangerText"), QStringLiteral("tooltipBg"),
             QStringLiteral("tooltipText"), QStringLiteral("thumbTop"),
-            QStringLiteral("thumbBottom"),
+            QStringLiteral("thumbBottom"), QStringLiteral("mediaBase"),
+            QStringLiteral("mediaText"), QStringLiteral("modalScrim"),
+            QStringLiteral("releaseNew"), QStringLiteral("releaseFixed"),
+            QStringLiteral("releaseImproved"), QStringLiteral("releaseChanged"),
+            QStringLiteral("releaseRemoved"),
             // Recording-overlay surfaces (REC badge, countdown, keystroke badge).
             QStringLiteral("recBadgeBg"), QStringLiteral("recBadgeText"),
-            QStringLiteral("recDot"), QStringLiteral("countdownBg"),
+            QStringLiteral("recDot"), QStringLiteral("recordFrameContrast"),
+            QStringLiteral("countdownBg"),
             QStringLiteral("countdownNumber"), QStringLiteral("keystrokeBg"),
             QStringLiteral("keystrokeText")};
 }

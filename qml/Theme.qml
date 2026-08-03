@@ -74,6 +74,24 @@ QtObject {
             tooltipText: d.tooltipText !== undefined ? d.tooltipText : "#FFFFFF",
             thumbTop: d.thumbTop !== undefined ? d.thumbTop : "#FFFFFF",
             thumbBottom: d.thumbBottom !== undefined ? d.thumbBottom : "#DDD6EC",
+            // Content-neutral ink and scrims sit over arbitrary screenshots or
+            // video, rather than over the theme's own surfaces. Custom themes
+            // may still override them, while old JSON files keep safe defaults.
+            mediaBase: d.mediaBase !== undefined ? d.mediaBase : "#000000",
+            mediaText: d.mediaText !== undefined ? d.mediaText : "#FFFFFF",
+            modalScrim: d.modalScrim !== undefined ? d.modalScrim : Qt.rgba(0, 0, 0, 0.45),
+            // Semantic release-note categories. These are optional tokens rather
+            // than component literals, so custom themes can tune their contrast.
+            releaseNew: d.releaseNew !== undefined ? d.releaseNew
+                        : (d.isDark ? "#3FB950" : "#1A7F37"),
+            releaseFixed: d.releaseFixed !== undefined ? d.releaseFixed
+                          : (d.isDark ? "#58A6FF" : "#0969DA"),
+            releaseImproved: d.releaseImproved !== undefined ? d.releaseImproved
+                             : (d.isDark ? "#A371F7" : "#8250DF"),
+            releaseChanged: d.releaseChanged !== undefined ? d.releaseChanged
+                            : (d.isDark ? "#D29922" : "#9A6700"),
+            releaseRemoved: d.releaseRemoved !== undefined ? d.releaseRemoved
+                            : (d.isDark ? "#F85149" : "#CF222E"),
             isDark: d.isDark,
             swatches: d.swatches !== undefined ? d.swatches
                       : ["#FF4757", "#FFD84D", "#2ED573", "#1E90FF", "#C8ACD6", "#FFFFFF", "#17153B"],
@@ -85,6 +103,8 @@ QtObject {
             recBadgeBg: d.recBadgeBg !== undefined ? d.recBadgeBg : Qt.rgba(0, 0, 0, 0.78),
             recBadgeText: d.recBadgeText !== undefined ? d.recBadgeText : "#FFFFFF",
             recDot: d.recDot !== undefined ? d.recDot : "#FF4D4D",
+            recordFrameContrast: d.recordFrameContrast !== undefined
+                                 ? d.recordFrameContrast : Qt.rgba(0, 0, 0, 0.55),
             countdownBg: d.countdownBg !== undefined ? d.countdownBg : Qt.rgba(0, 0, 0, 0.55),
             countdownNumber: d.countdownNumber !== undefined ? d.countdownNumber : d.accent,
             keystrokeBg: d.keystrokeBg !== undefined ? d.keystrokeBg : Qt.rgba(0, 0, 0, 0.69),
@@ -185,12 +205,21 @@ QtObject {
     readonly property color tooltipText: pal.tooltipText
     readonly property color thumbTop:   pal.thumbTop
     readonly property color thumbBottom: pal.thumbBottom
+    readonly property color mediaBase:  pal.mediaBase
+    readonly property color mediaText:  pal.mediaText
+    readonly property color modalScrim: pal.modalScrim
+    readonly property color releaseNew:      pal.releaseNew
+    readonly property color releaseFixed:    pal.releaseFixed
+    readonly property color releaseImproved: pal.releaseImproved
+    readonly property color releaseChanged:  pal.releaseChanged
+    readonly property color releaseRemoved:  pal.releaseRemoved
     readonly property var   swatches:   pal.swatches
 
     // Recording-overlay tokens (REC badge / countdown / keystroke badge).
     readonly property color recBadgeBg:      pal.recBadgeBg
     readonly property color recBadgeText:    pal.recBadgeText
     readonly property color recDot:          pal.recDot
+    readonly property color recordFrameContrast: pal.recordFrameContrast
     readonly property color countdownBg:     pal.countdownBg
     readonly property color countdownNumber: pal.countdownNumber
     readonly property color keystrokeBg:     pal.keystrokeBg

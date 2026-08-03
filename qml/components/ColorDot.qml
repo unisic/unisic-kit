@@ -3,7 +3,7 @@ import Unisic.Kit
 
 Rectangle {
     id: root
-    property color dotColor: "#FF4757"
+    property color dotColor: Theme.swatches.length > 0 ? Theme.swatches[0] : Theme.accent
     // Tri-state, same rule as ToolChip: left unset (undefined) this dot is a
     // plain button - the picker-opening dots in the props bar are that - and
     // bound to a bool it is a two-state swatch. Announcing every dot as a
