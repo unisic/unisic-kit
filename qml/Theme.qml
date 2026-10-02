@@ -151,6 +151,12 @@ QtObject {
         var pos = ThemeController.sysPositive
         var neg = ThemeController.sysNegative
         var tip = ThemeController.sysTooltipBase
+        // The desktop asks for dark but the toolkit palette is light (GNOME
+        // with a GTK3 theme under 'prefer-dark', #118), or the other way
+        // round: the palette's colours would contradict the scheme, so take
+        // the stock palette of the requested scheme instead.
+        if (dark !== (Qt.color(win).hslLightness < 0.5))
+            return _expand(_defs[dark ? "dark" : "light"])
         var hoverC = hover.a > 0 ? hover : acc
         return _expand({
             primary: win,

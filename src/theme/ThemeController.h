@@ -1,6 +1,7 @@
 #pragma once
 #include <QObject>
 #include <QColor>
+#include <QDBusVariant>
 #include <QSettings>
 #include <QVariantList>
 #include <QVariantMap>
@@ -106,7 +107,11 @@ signals:
     void revChanged();
     void customThemesChanged();
 
+private slots:
+    void onPortalSettingChanged(const QString &ns, const QString &key, const QDBusVariant &value);
+
 private:
+    static int portalScheme(const QVariant &value);
     void bump();
     void scheduleSystemBump();
     void scheduleCustomReload();
@@ -117,6 +122,7 @@ private:
 
     QString m_themeName;
     int m_rev = 0;
+    int m_portalScheme = 0; // org.freedesktop.appearance color-scheme, 0 = unknown
     bool m_bumpQueued = false;
     bool m_customReloadQueued = false;
     QFileSystemWatcher *m_watcher = nullptr;
