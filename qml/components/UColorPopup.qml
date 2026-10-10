@@ -78,324 +78,332 @@ Popup {
         border.color: Theme.divider
     }
 
-    // Scroller + column. It only ever scrolls when the window is too short for
-    // the whole picker (UFlyout rule 3): with room, contentHeight equals the
-    // height and `interactive` is false, so nothing about the drag surfaces
-    // below changes. Measured before this: at 480x300 the swatch row, the hex
+    // Scroller + pinned Done button, the UConfirmDialog shell. It only ever
+    // scrolls when the window is too short for the whole picker (UFlyout
+    // rule 3): with room, contentHeight equals the height and `interactive`
+    // is false, so nothing about the drag surfaces below changes. Measured before this: at 480x300 the swatch row, the hex
     // field and the Done button hung 36-82px out of the popup's own background.
-    contentItem: Flickable {
-        id: pickerFlick
-        // 240 is the picker's own width, as it always was: the hex field, the
-        // hue and alpha bars and the SV square all size off it. The swatch row
-        // may ask for more (a custom theme with more swatches), never for less
-        // - deriving the width from that row alone shrank the picker by 50 px
-        // and squeezed the hex field, and a short row could drive it negative.
-        implicitWidth: Math.max(240, swatchRow.implicitWidth)
-        implicitHeight: UFlyout.fitHeight(root.parent, pickerCol.implicitHeight
-                                          + root.topPadding + root.bottomPadding)
-                        - root.topPadding - root.bottomPadding
-        contentWidth: width
-        contentHeight: pickerCol.implicitHeight
-        clip: true
-        interactive: contentHeight > height
-        boundsBehavior: Flickable.StopAtBounds
+    contentItem: Column {
+        id: dialogCol
+        // Everything below the scroller, so the scroller can be given the rest.
+        readonly property real footerHeight: doneButton.height + spacing
+        spacing: Theme.spacingM
 
-        // The wheel reaches nothing else in here: the SV square, the hue bar and
-        // the alpha bar are all drag surfaces, none of them takes a wheel.
-        MiddleScroll { flickable: pickerFlick }
-        WheelBoost { flickable: pickerFlick }
+        // On the contentItem, not on the Popup: the Accessible attached type
+        // only binds to an Item, and a Popup is not one.
+        Accessible.role: Accessible.ColorChooser
+        Accessible.name: qsTr("Colour picker")
 
-        Column {
-            id: pickerCol
-            spacing: Theme.spacingM
-            width: pickerFlick.width
+        Flickable {
+            id: pickerFlick
+            // 240 is the picker's own width, as it always was: the hex field, the
+            // hue and alpha bars and the SV square all size off it. The swatch row
+            // may ask for more (a custom theme with more swatches), never for less
+            // - deriving the width from that row alone shrank the picker by 50 px
+            // and squeezed the hex field, and a short row could drive it negative.
+            implicitWidth: Math.max(240, swatchRow.implicitWidth)
+            height: UFlyout.fitHeight(root.parent, pickerCol.implicitHeight + dialogCol.footerHeight
+                                      + root.topPadding + root.bottomPadding)
+                    - root.topPadding - root.bottomPadding - dialogCol.footerHeight
+            contentWidth: width
+            contentHeight: pickerCol.implicitHeight
+            clip: true
+            interactive: contentHeight > height
+            boundsBehavior: Flickable.StopAtBounds
 
-            // On the contentItem, not on the Popup: the Accessible attached type
-            // only binds to an Item, and a Popup is not one.
-            Accessible.role: Accessible.ColorChooser
-            Accessible.name: qsTr("Colour picker")
+            // The wheel reaches nothing else in here: the SV square, the hue bar and
+            // the alpha bar are all drag surfaces, none of them takes a wheel.
+            MiddleScroll { flickable: pickerFlick }
+            WheelBoost { flickable: pickerFlick }
 
-            // ---- saturation / value square ----
-            Item {
-                id: svArea
-                width: parent.width
-                height: 150
+            Column {
+                id: pickerCol
+                spacing: Theme.spacingM
+                width: pickerFlick.width
 
-                function _nudge(ds, dv) {
-                    root.sat = Math.max(0, Math.min(1, root.sat + ds))
-                    root.val = Math.max(0, Math.min(1, root.val + dv))
-                }
+                // ---- saturation / value square ----
+                Item {
+                    id: svArea
+                    width: parent.width
+                    height: 150
 
-                activeFocusOnTab: true
-                Keys.onLeftPressed: (e) => { if (UKeys.claim(e)) svArea._nudge(-0.02, 0) }
-                Keys.onRightPressed: (e) => { if (UKeys.claim(e)) svArea._nudge(0.02, 0) }
-                Keys.onUpPressed: (e) => { if (UKeys.claim(e)) svArea._nudge(0, 0.02) }
-                Keys.onDownPressed: (e) => { if (UKeys.claim(e)) svArea._nudge(0, -0.02) }
+                    function _nudge(ds, dv) {
+                        root.sat = Math.max(0, Math.min(1, root.sat + ds))
+                        root.val = Math.max(0, Math.min(1, root.val + dv))
+                    }
 
-                // No 2D-field role exists; Canvas is the honest one, and the live
-                // values travel in the name so arrow-key nudging is audible.
-                Accessible.role: Accessible.Canvas
-                Accessible.name: qsTr("Saturation and brightness")
-                Accessible.description: qsTr("Saturation %1, brightness %2")
-                                        .arg(root._pct(root.sat)).arg(root._pct(root.val))
-                Accessible.focusable: svArea.activeFocusOnTab
+                    activeFocusOnTab: true
+                    Keys.onLeftPressed: (e) => { if (UKeys.claim(e)) svArea._nudge(-0.02, 0) }
+                    Keys.onRightPressed: (e) => { if (UKeys.claim(e)) svArea._nudge(0.02, 0) }
+                    Keys.onUpPressed: (e) => { if (UKeys.claim(e)) svArea._nudge(0, 0.02) }
+                    Keys.onDownPressed: (e) => { if (UKeys.claim(e)) svArea._nudge(0, -0.02) }
 
-                UFocusRing { inset: 0; hostRadius: Theme.radiusS }
+                    // No 2D-field role exists; Canvas is the honest one, and the live
+                    // values travel in the name so arrow-key nudging is audible.
+                    Accessible.role: Accessible.Canvas
+                    Accessible.name: qsTr("Saturation and brightness")
+                    Accessible.description: qsTr("Saturation %1, brightness %2")
+                                            .arg(root._pct(root.sat)).arg(root._pct(root.val))
+                    Accessible.focusable: svArea.activeFocusOnTab
 
-                Rectangle { // pure hue base
-                    anchors.fill: parent
-                    radius: Theme.radiusS
-                    color: Qt.hsva(root.hue, 1, 1, 1)
-                }
-                Rectangle { // white -> transparent (saturation, left to right)
-                    anchors.fill: parent
-                    radius: Theme.radiusS
-                    gradient: Gradient {
-                        orientation: Gradient.Horizontal
-                        GradientStop { position: 0.0; color: "#ffffffff" }
-                        GradientStop { position: 1.0; color: "#00ffffff" }
+                    UFocusRing { inset: 0; hostRadius: Theme.radiusS }
+
+                    Rectangle { // pure hue base
+                        anchors.fill: parent
+                        radius: Theme.radiusS
+                        color: Qt.hsva(root.hue, 1, 1, 1)
+                    }
+                    Rectangle { // white -> transparent (saturation, left to right)
+                        anchors.fill: parent
+                        radius: Theme.radiusS
+                        gradient: Gradient {
+                            orientation: Gradient.Horizontal
+                            GradientStop { position: 0.0; color: "#ffffffff" }
+                            GradientStop { position: 1.0; color: "#00ffffff" }
+                        }
+                    }
+                    Rectangle { // transparent -> black (value, top to bottom)
+                        anchors.fill: parent
+                        radius: Theme.radiusS
+                        gradient: Gradient {
+                            GradientStop { position: 0.0; color: "#00000000" }
+                            GradientStop { position: 1.0; color: "#ff000000" }
+                        }
+                    }
+                    Rectangle { // marker
+                        width: 14; height: 14; radius: 7
+                        border.width: 2; border.color: Theme.mediaText
+                        color: "transparent"
+                        x: root.sat * parent.width - width / 2
+                        y: (1 - root.val) * parent.height - height / 2
+                        Rectangle {
+                            anchors.fill: parent; anchors.margins: 2; radius: 5
+                            border.width: 1; border.color: Theme.alpha(Theme.mediaBase, 0.5); color: "transparent"
+                        }
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        // The scroller above only turns interactive in a window too
+                        // short for the picker; there, a drag here must still paint the
+                        // colour instead of scrolling it away.
+                        preventStealing: true
+                        onPressed: (m) => handle(m)
+                        onPositionChanged: (m) => handle(m)
+                        function handle(m) {
+                            root.sat = Math.max(0, Math.min(1, m.x / width))
+                            root.val = Math.max(0, Math.min(1, 1 - m.y / height))
+                        }
                     }
                 }
-                Rectangle { // transparent -> black (value, top to bottom)
-                    anchors.fill: parent
-                    radius: Theme.radiusS
-                    gradient: Gradient {
-                        GradientStop { position: 0.0; color: "#00000000" }
-                        GradientStop { position: 1.0; color: "#ff000000" }
-                    }
-                }
-                Rectangle { // marker
-                    width: 14; height: 14; radius: 7
-                    border.width: 2; border.color: Theme.mediaText
-                    color: "transparent"
-                    x: root.sat * parent.width - width / 2
-                    y: (1 - root.val) * parent.height - height / 2
+
+                // ---- hue slider ----
+                Item {
+                    id: hueArea
+                    width: parent.width
+                    height: 18
+
+                    function _nudge(d) { root.hue = Math.max(0, Math.min(1, root.hue + d)) }
+
+                    activeFocusOnTab: true
+                    Keys.onLeftPressed: (e) => { if (UKeys.claim(e)) hueArea._nudge(-0.01) }
+                    Keys.onDownPressed: (e) => { if (UKeys.claim(e)) hueArea._nudge(-0.01) }
+                    Keys.onRightPressed: (e) => { if (UKeys.claim(e)) hueArea._nudge(0.01) }
+                    Keys.onUpPressed: (e) => { if (UKeys.claim(e)) hueArea._nudge(0.01) }
+
+                    Accessible.role: Accessible.Slider
+                    Accessible.name: qsTr("Hue")
+                    Accessible.description: Math.round(root.hue * 360) + "°"
+                    Accessible.focusable: hueArea.activeFocusOnTab
+                    Accessible.onIncreaseAction: hueArea._nudge(0.01)
+                    Accessible.onDecreaseAction: hueArea._nudge(-0.01)
+
+                    UFocusRing { inset: 0; hostRadius: 9 }
+
                     Rectangle {
-                        anchors.fill: parent; anchors.margins: 2; radius: 5
-                        border.width: 1; border.color: Theme.alpha(Theme.mediaBase, 0.5); color: "transparent"
+                        anchors.fill: parent
+                        radius: 9
+                        gradient: Gradient {
+                            orientation: Gradient.Horizontal
+                            GradientStop { position: 0.000; color: "#ff0000" }
+                            GradientStop { position: 0.167; color: "#ffff00" }
+                            GradientStop { position: 0.333; color: "#00ff00" }
+                            GradientStop { position: 0.500; color: "#00ffff" }
+                            GradientStop { position: 0.667; color: "#0000ff" }
+                            GradientStop { position: 0.833; color: "#ff00ff" }
+                            GradientStop { position: 1.000; color: "#ff0000" }
+                        }
+                    }
+                    Rectangle {
+                        width: 6; height: parent.height + 4; radius: 3
+                        y: -2
+                        x: root.hue * parent.width - width / 2
+                        color: "transparent"
+                        border.width: 2; border.color: Theme.mediaText
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        preventStealing: true   // same as the square above
+                        onPressed: (m) => root.hue = Math.max(0, Math.min(1, m.x / width))
+                        onPositionChanged: (m) => root.hue = Math.max(0, Math.min(1, m.x / width))
                     }
                 }
-                MouseArea {
-                    anchors.fill: parent
-                    // The scroller above only turns interactive in a window too
-                    // short for the picker; there, a drag here must still paint the
-                    // colour instead of scrolling it away.
-                    preventStealing: true
-                    onPressed: (m) => handle(m)
-                    onPositionChanged: (m) => handle(m)
-                    function handle(m) {
-                        root.sat = Math.max(0, Math.min(1, m.x / width))
-                        root.val = Math.max(0, Math.min(1, 1 - m.y / height))
+
+                // ---- alpha slider (fill colour only) ----
+                Item {
+                    id: alphaArea
+                    visible: root.showAlpha
+                    width: parent.width
+                    height: 18
+
+                    function _nudge(d) { root.alpha = Math.max(0, Math.min(1, root.alpha + d)) }
+
+                    activeFocusOnTab: visible
+                    Keys.onLeftPressed: (e) => { if (UKeys.claim(e)) alphaArea._nudge(-0.02) }
+                    Keys.onDownPressed: (e) => { if (UKeys.claim(e)) alphaArea._nudge(-0.02) }
+                    Keys.onRightPressed: (e) => { if (UKeys.claim(e)) alphaArea._nudge(0.02) }
+                    Keys.onUpPressed: (e) => { if (UKeys.claim(e)) alphaArea._nudge(0.02) }
+
+                    Accessible.role: Accessible.Slider
+                    Accessible.name: qsTr("Opacity")
+                    Accessible.description: root._pct(root.alpha)
+                    Accessible.focusable: alphaArea.activeFocusOnTab
+                    Accessible.onIncreaseAction: alphaArea._nudge(0.02)
+                    Accessible.onDecreaseAction: alphaArea._nudge(-0.02)
+
+                    UFocusRing { inset: 0; hostRadius: 9 }
+
+                    Canvas { // checkerboard so transparency reads
+                        anchors.fill: parent
+                        onPaint: {
+                            const ctx = getContext("2d")
+                            const s = 6
+                            for (let y = 0; y < height; y += s)
+                                for (let x = 0; x < width; x += s) {
+                                    ctx.fillStyle = ((x / s + y / s) % 2 === 0) ? "#cccccc" : "#888888"
+                                    ctx.fillRect(x, y, s, s)
+                                }
+                        }
+                    }
+                    Rectangle {
+                        anchors.fill: parent
+                        radius: 9
+                        gradient: Gradient {
+                            orientation: Gradient.Horizontal
+                            GradientStop { position: 0.0; color: Qt.hsva(root.hue, root.sat, root.val, 0) }
+                            GradientStop { position: 1.0; color: Qt.hsva(root.hue, root.sat, root.val, 1) }
+                        }
+                    }
+                    Rectangle {
+                        width: 6; height: parent.height + 4; radius: 3
+                        y: -2
+                        x: root.alpha * parent.width - width / 2
+                        color: "transparent"
+                        border.width: 2; border.color: Theme.mediaText
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        preventStealing: true   // same as the square above
+                        onPressed: (m) => root.alpha = Math.max(0, Math.min(1, m.x / width))
+                        onPositionChanged: (m) => root.alpha = Math.max(0, Math.min(1, m.x / width))
                     }
                 }
-            }
 
-            // ---- hue slider ----
-            Item {
-                id: hueArea
-                width: parent.width
-                height: 18
+                // ---- quick swatches ----
+                Row {
+                    id: swatchRow
+                    spacing: 6
+                    Repeater {
+                        model: root.swatches
+                        delegate: Rectangle {
+                            id: swatch
+                            required property var modelData
+                            width: 22; height: 22; radius: Theme.radiusS
+                            color: modelData
+                            border.width: Qt.colorEqual(modelData, root.col) ? 2 : 1
+                            border.color: Qt.colorEqual(modelData, root.col) ? Theme.accent : Theme.divider
 
-                function _nudge(d) { root.hue = Math.max(0, Math.min(1, root.hue + d)) }
-
-                activeFocusOnTab: true
-                Keys.onLeftPressed: (e) => { if (UKeys.claim(e)) hueArea._nudge(-0.01) }
-                Keys.onDownPressed: (e) => { if (UKeys.claim(e)) hueArea._nudge(-0.01) }
-                Keys.onRightPressed: (e) => { if (UKeys.claim(e)) hueArea._nudge(0.01) }
-                Keys.onUpPressed: (e) => { if (UKeys.claim(e)) hueArea._nudge(0.01) }
-
-                Accessible.role: Accessible.Slider
-                Accessible.name: qsTr("Hue")
-                Accessible.description: Math.round(root.hue * 360) + "°"
-                Accessible.focusable: hueArea.activeFocusOnTab
-                Accessible.onIncreaseAction: hueArea._nudge(0.01)
-                Accessible.onDecreaseAction: hueArea._nudge(-0.01)
-
-                UFocusRing { inset: 0; hostRadius: 9 }
-
-                Rectangle {
-                    anchors.fill: parent
-                    radius: 9
-                    gradient: Gradient {
-                        orientation: Gradient.Horizontal
-                        GradientStop { position: 0.000; color: "#ff0000" }
-                        GradientStop { position: 0.167; color: "#ffff00" }
-                        GradientStop { position: 0.333; color: "#00ff00" }
-                        GradientStop { position: 0.500; color: "#00ffff" }
-                        GradientStop { position: 0.667; color: "#0000ff" }
-                        GradientStop { position: 0.833; color: "#ff00ff" }
-                        GradientStop { position: 1.000; color: "#ff0000" }
-                    }
-                }
-                Rectangle {
-                    width: 6; height: parent.height + 4; radius: 3
-                    y: -2
-                    x: root.hue * parent.width - width / 2
-                    color: "transparent"
-                    border.width: 2; border.color: Theme.mediaText
-                }
-                MouseArea {
-                    anchors.fill: parent
-                    preventStealing: true   // same as the square above
-                    onPressed: (m) => root.hue = Math.max(0, Math.min(1, m.x / width))
-                    onPositionChanged: (m) => root.hue = Math.max(0, Math.min(1, m.x / width))
-                }
-            }
-
-            // ---- alpha slider (fill colour only) ----
-            Item {
-                id: alphaArea
-                visible: root.showAlpha
-                width: parent.width
-                height: 18
-
-                function _nudge(d) { root.alpha = Math.max(0, Math.min(1, root.alpha + d)) }
-
-                activeFocusOnTab: visible
-                Keys.onLeftPressed: (e) => { if (UKeys.claim(e)) alphaArea._nudge(-0.02) }
-                Keys.onDownPressed: (e) => { if (UKeys.claim(e)) alphaArea._nudge(-0.02) }
-                Keys.onRightPressed: (e) => { if (UKeys.claim(e)) alphaArea._nudge(0.02) }
-                Keys.onUpPressed: (e) => { if (UKeys.claim(e)) alphaArea._nudge(0.02) }
-
-                Accessible.role: Accessible.Slider
-                Accessible.name: qsTr("Opacity")
-                Accessible.description: root._pct(root.alpha)
-                Accessible.focusable: alphaArea.activeFocusOnTab
-                Accessible.onIncreaseAction: alphaArea._nudge(0.02)
-                Accessible.onDecreaseAction: alphaArea._nudge(-0.02)
-
-                UFocusRing { inset: 0; hostRadius: 9 }
-
-                Canvas { // checkerboard so transparency reads
-                    anchors.fill: parent
-                    onPaint: {
-                        const ctx = getContext("2d")
-                        const s = 6
-                        for (let y = 0; y < height; y += s)
-                            for (let x = 0; x < width; x += s) {
-                                ctx.fillStyle = ((x / s + y / s) % 2 === 0) ? "#cccccc" : "#888888"
-                                ctx.fillRect(x, y, s, s)
+                            function _pick() {
+                                const c = swatch.color
+                                root.hue = c.hsvHue >= 0 ? c.hsvHue : root.hue
+                                root.sat = c.hsvSaturation
+                                root.val = c.hsvValue
+                                // keep current alpha
                             }
-                    }
-                }
-                Rectangle {
-                    anchors.fill: parent
-                    radius: 9
-                    gradient: Gradient {
-                        orientation: Gradient.Horizontal
-                        GradientStop { position: 0.0; color: Qt.hsva(root.hue, root.sat, root.val, 0) }
-                        GradientStop { position: 1.0; color: Qt.hsva(root.hue, root.sat, root.val, 1) }
-                    }
-                }
-                Rectangle {
-                    width: 6; height: parent.height + 4; radius: 3
-                    y: -2
-                    x: root.alpha * parent.width - width / 2
-                    color: "transparent"
-                    border.width: 2; border.color: Theme.mediaText
-                }
-                MouseArea {
-                    anchors.fill: parent
-                    preventStealing: true   // same as the square above
-                    onPressed: (m) => root.alpha = Math.max(0, Math.min(1, m.x / width))
-                    onPositionChanged: (m) => root.alpha = Math.max(0, Math.min(1, m.x / width))
-                }
-            }
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: swatch._pick()
+                            }
 
-            // ---- quick swatches ----
-            Row {
-                id: swatchRow
-                spacing: 6
-                Repeater {
-                    model: root.swatches
-                    delegate: Rectangle {
-                        id: swatch
-                        required property var modelData
-                        width: 22; height: 22; radius: Theme.radiusS
-                        color: modelData
-                        border.width: Qt.colorEqual(modelData, root.col) ? 2 : 1
-                        border.color: Qt.colorEqual(modelData, root.col) ? Theme.accent : Theme.divider
+                            activeFocusOnTab: true
+                            Keys.onSpacePressed: (e) => UKeys.activate(e, swatch._pick)
+                            Keys.onReturnPressed: (e) => UKeys.activate(e, swatch._pick)
+                            Keys.onEnterPressed: (e) => UKeys.activate(e, swatch._pick)
 
-                        function _pick() {
-                            const c = swatch.color
-                            root.hue = c.hsvHue >= 0 ? c.hsvHue : root.hue
-                            root.sat = c.hsvSaturation
-                            root.val = c.hsvValue
-                            // keep current alpha
-                        }
-                        MouseArea {
-                            anchors.fill: parent
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: swatch._pick()
-                        }
+                            Accessible.role: Accessible.Button
+                            // No name to inherit - the hex value is the only honest one.
+                            Accessible.name: String(swatch.modelData)
+                            Accessible.focusable: swatch.activeFocusOnTab
+                            Accessible.checkable: true
+                            Accessible.checked: Qt.colorEqual(swatch.modelData, root.col)
+                            Accessible.onPressAction: swatch._pick()
 
-                        activeFocusOnTab: true
-                        Keys.onSpacePressed: (e) => UKeys.activate(e, swatch._pick)
-                        Keys.onReturnPressed: (e) => UKeys.activate(e, swatch._pick)
-                        Keys.onEnterPressed: (e) => UKeys.activate(e, swatch._pick)
-
-                        Accessible.role: Accessible.Button
-                        // No name to inherit - the hex value is the only honest one.
-                        Accessible.name: String(swatch.modelData)
-                        Accessible.focusable: swatch.activeFocusOnTab
-                        Accessible.checkable: true
-                        Accessible.checked: Qt.colorEqual(swatch.modelData, root.col)
-                        Accessible.onPressAction: swatch._pick()
-
-                        UFocusRing { inset: 0; hostRadius: Theme.radiusS }
-                    }
-                }
-            }
-
-            // ---- eyedropper + editable hex ----
-            Row {
-                width: parent.width
-                spacing: Theme.spacingS
-                UIconButton {
-                    iconName: "color-picker"; iconSize: 16
-                    width: 34; height: 34
-                    anchors.verticalCenter: parent.verticalCenter
-                    tooltip: qsTr("Pick a colour from the screen")
-                    onClicked: { root.close(); root.requestScreenPick() }
-                }
-                Rectangle {
-                    width: 34; height: 34; radius: Theme.radiusS
-                    color: root.col
-                    border.width: 1; border.color: Theme.divider
-                    anchors.verticalCenter: parent.verticalCenter
-                }
-                UTextField {
-                    id: hexField
-                    width: parent.width - 34 * 2 - Theme.spacingS * 2
-                    anchors.verticalCenter: parent.verticalCenter
-                    placeholder: root.showAlpha ? "#AARRGGBB" : "#RRGGBB"
-                    // Reflect the live colour unless the user is editing the field.
-                    text: hexField.inputActiveFocus ? text
-                        : (root.showAlpha
-                           ? "#" + root.col.toString().slice(1).toUpperCase()
-                           : "#" + root.col.toString().slice(1, 7).toUpperCase())
-                    function applyHex() {
-                        let t = text.trim()
-                        if (t.length > 0 && t[0] !== "#") t = "#" + t
-                        // #RGB / #RRGGBB / #AARRGGBB only.
-                        if (/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(t)) {
-                            const c = Qt.color(t)
-                            if (c.a !== undefined) root.setColor(c)
+                            UFocusRing { inset: 0; hostRadius: Theme.radiusS }
                         }
                     }
-                    onAccepted: applyHex()
-                    onInputActiveFocusChanged: if (!hexField.inputActiveFocus) applyHex()
+                }
+
+                // ---- eyedropper + editable hex ----
+                Row {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    UIconButton {
+                        iconName: "color-picker"; iconSize: 16
+                        width: 34; height: 34
+                        anchors.verticalCenter: parent.verticalCenter
+                        tooltip: qsTr("Pick a colour from the screen")
+                        onClicked: { root.close(); root.requestScreenPick() }
+                    }
+                    Rectangle {
+                        width: 34; height: 34; radius: Theme.radiusS
+                        color: root.col
+                        border.width: 1; border.color: Theme.divider
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                    UTextField {
+                        id: hexField
+                        width: parent.width - 34 * 2 - Theme.spacingS * 2
+                        anchors.verticalCenter: parent.verticalCenter
+                        placeholder: root.showAlpha ? "#AARRGGBB" : "#RRGGBB"
+                        // Reflect the live colour unless the user is editing the field.
+                        text: hexField.inputActiveFocus ? text
+                            : (root.showAlpha
+                               ? "#" + root.col.toString().slice(1).toUpperCase()
+                               : "#" + root.col.toString().slice(1, 7).toUpperCase())
+                        function applyHex() {
+                            let t = text.trim()
+                            if (t.length > 0 && t[0] !== "#") t = "#" + t
+                            // #RGB / #RRGGBB / #AARRGGBB only.
+                            if (/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(t)) {
+                                const c = Qt.color(t)
+                                if (c.a !== undefined) root.setColor(c)
+                            }
+                        }
+                        onAccepted: applyHex()
+                        onInputActiveFocusChanged: if (!hexField.inputActiveFocus) applyHex()
+                    }
                 }
             }
+        }
 
-            // ---- done ----
-            UButton {
-                anchors.right: parent.right
-                text: qsTr("Done")
-                variant: "filled"
-                compact: true
-                onClicked: { root.picked(root.col); root.close() }
-            }
+        // ---- done ----
+        UButton {
+            id: doneButton
+            anchors.right: parent.right
+            text: qsTr("Done")
+            variant: "filled"
+            compact: true
+            onClicked: { root.picked(root.col); root.close() }
         }
     }
 }
