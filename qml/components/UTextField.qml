@@ -164,6 +164,13 @@ Rectangle {
             root.edited(text)
         }
         onAccepted: root.accepted()
+        // Escape hands focus back. Nothing else could: clicking a caption or
+        // a card takes no focus, so a field once entered stayed entered, and
+        // one with a UVarBar kept the bar floating over the rows below it
+        // (user-reported: "can't get out of the filename field"). A dialog
+        // that closes on Escape now takes a second press while a field in it
+        // has focus - the first one only leaves the field.
+        Keys.onEscapePressed: (e) => { if (UKeys.claim(e)) input.focus = false }
 
         // QML TextInput defaults to activeFocusOnTab FALSE, so until now every
         // field in the app could only be reached with the mouse.

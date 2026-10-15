@@ -7,7 +7,8 @@ need in common, so they don't drift apart:
 - **C++ static library**
   - Portal `ScreenCastSession` (XDG Desktop Portal ScreenCast setup)
   - `KWinScreencasting` (KWin-native zkde_screencast client - record a named
-    output/region/window with no portal dialog; optional, needs the
+    output/region/window with no portal dialog; always built, and at RUNTIME
+    `isAvailable()` additionally wants the
     `X-KDE-Wayland-Interfaces=zkde_screencast_unstable_v1` desktop-file grant)
   - `PortalRequest` (portal D-Bus request/response handling)
   - `IScreenGrabber` (the backend-agnostic frame-source contract both grabbers
@@ -15,9 +16,9 @@ need in common, so they don't drift apart:
   - `PipeWireGrabber` (PipeWire frame capture - portal fd or default daemon)
   - `X11ShmGrabber` (XShm frame capture straight off the X server, the frame
     source on an X11 session where there is no working ScreenCast portal;
-    optional, needs libX11 + libXext + libXfixes)
+    always built, needs libX11 + libXext + libXfixes)
   - `X11Hotkeys` (XGrabKey global hotkeys for X11 sessions without KGlobalAccel
-    or a usable GlobalShortcuts portal; optional, needs libX11 + libxcb) and
+    or a usable GlobalShortcuts portal; always built, needs libX11 + libxcb) and
   - `ShortcutKeyMap` (header-only Qt-portable → X-keysym/GTK-accelerator
     vocabulary, shared by the grabs above and by desktop custom-shortcut stores)
   - `ThemeController` (light/dark theme + accent color state)
@@ -47,23 +48,39 @@ GPLv3 - see [LICENSE](LICENSE).
 
 Requires **C++20**, **Qt 6.5+**, and **CMake** (Ninja recommended).
 
+**Every dependency below is required.** The kit has no optional ones: a missing
+package stops the configure with a `FATAL_ERROR` naming it on Fedora, Debian,
+Arch and openSUSE, rather than dropping a backend and letting a consuming
+application ship a build that cannot do what its interface offers. The `HAVE_*`
+names still identify their code paths, they simply cannot be off - a successful
+configure exports all four to the consumer as `UNISIC_KIT_FEATURES`.
+
 Build dependencies (Fedora package names; use your distro's equivalents):
 
-- `qt6-qtbase-devel` - Core, Gui, DBus
+- `qt6-qtbase-devel` - Core, Gui, DBus, and the Qt6 GUI **private** headers
+  (`qt6-qtbase-private-devel`) for the per-screen `wl_output`
 - `qt6-qtdeclarative-devel` - Quick, Qml, the QML module tooling
 - `qt6-qtsvg-devel` - SVG image format plugin (renders the bundled symbolic icons)
-- `pipewire-devel` *(optional)* - enables `PipeWireGrabber` screen-frame capture.
-  Without it the kit still builds; only `PipeWireGrabber` is dropped and a
-  warning is printed at configure time.
-- `libX11-devel libXext-devel libXfixes-devel` *(optional)* - enables
-  `X11ShmGrabber` (`HAVE_X11`): recording on an X11 session.
-- `libX11-devel libxcb-devel` *(optional)* - enables `X11Hotkeys`
-  (`HAVE_X11_HOTKEYS`): global hotkeys on an X11 session. Deliberately a
-  separate gate from the one above; either can be built without the other.
+- `qt6-qtwayland-devel` + `plasma-wayland-protocols-devel` (>= 1.7) -
+  `KWinScreencasting` (`HAVE_KWIN_SCREENCAST`): KWin-native capture with no
+  portal share dialog
+- `pipewire-devel` - `PipeWireGrabber` (`HAVE_PIPEWIRE`): screen-frame capture
+  on a Wayland session
+- `libX11-devel libXext-devel libXfixes-devel` - `X11ShmGrabber` (`HAVE_X11`):
+  recording on an X11 session
+- `libX11-devel libxcb-devel` - `X11Hotkeys` (`HAVE_X11_HOTKEYS`): global
+  hotkeys on an X11 session. Deliberately a separate probe from the one above,
+  so a missing package is named exactly; both are mandatory.
 
-Every optional gate is additive. The Wayland paths (portal + PipeWire,
+Debian 13 (trixie) is the one distro that needs a detour: it installs the Qt6
+GUI private headers but ships no `Qt6GuiPrivateConfig.cmake` at all, so the
+`GuiPrivate` component probe fails on a system that has everything the code
+needs. The build then locates `qpa/qplatformnativeinterface.h` directly and
+prints which of the two routes it took.
+
+Every backend is additive at RUNTIME. The Wayland paths (portal + PipeWire,
 KGlobalAccel/portal hotkeys) are untouched by the X11 ones, which are selected
-at runtime only when `QGuiApplication::platformName() == "xcb"`.
+only when `QGuiApplication::platformName() == "xcb"`.
 
 ```sh
 cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
@@ -281,8 +298,8 @@ buffers and, per frame, appends a `CursorSample` (`tMonoNs`, stream-pixel `x/y`,
 `cursorShapeChanged(int id, QImage image, QPoint hotspot)` (emitted off the
 PipeWire thread - connect it queued/auto). `latestFrame()` takes an optional
 `qint64 *ptsNs` out-param stamped from the same `CLOCK_MONOTONIC` clock as the
-samples, so frames and cursor motion map onto one timeline. Requires the
-optional `pipewire-devel` build (`HAVE_PIPEWIRE`).
+samples, so frames and cursor motion map onto one timeline. Runs on the
+`pipewire-devel` path (`HAVE_PIPEWIRE`), which every build has.
 
 ## Provenance
 

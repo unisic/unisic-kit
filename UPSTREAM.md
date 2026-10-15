@@ -6,7 +6,7 @@ project as a shared foundation library ("kit") for Unisic and Unisic Studio.
 - **Source repository:** github.com/unisic/unisic
 - **Source commit (bootstrap):** `c2c2ab825a51476011df27d335d7a6331e33f949`
 - **Extraction date:** 2026-07-16
-- **Last full sync:** `45ff731` (2026-07-23) — the commit at which Unisic
+- **Last full sync:** `45ff731` (2026-07-23) - the commit at which Unisic
   switched from local copies to consuming the kit as a git submodule. From that
   point on the kit IS the single source for the files below; the "diffing
   against upstream" workflow at the bottom only matters for history archaeology.
@@ -82,33 +82,33 @@ and consumes `ShortcutKeyMap` from here.
 ## Local modifications
 
 The bootstrap copied the files above verbatim. The following adaptations were
-then applied on top to make the kit a self-contained standalone library — when
+then applied on top to make the kit a self-contained standalone library - when
 syncing a file from upstream, re-apply its note below.
 
 ### Adapted copies
 
 | File | What changed / why |
 | --- | --- |
-| `src/ConfigPath.h` | Rewritten from the hardcoded Unisic path (dev-build/legacy/sounds helpers) into a parameterized `UnisicKit` namespace: `setConfigName()` names the config once at startup, `filePath()`/`configDir()` derive from it. Defaults to `"unisic"`, so the historical path is unchanged. 45ff731 sync adds `setConfigFilePath()` — a full-path override for apps whose historical file name does not follow the `<name>/<name>.conf` derivation (Unisic's dev build keeps `unisic-dev/unisic.conf`); `configDir()` follows the override's directory so `themes/` stays next to the config file. |
-| `src/theme/ThemeController.h/.cpp` | Synced to 45ff731 (custom-theme JSON scan/hot-reload/seeding, `themesFolder()`, watcher). Adaptation re-applied: `UnisicConfig::filePath()` → `UnisicKit::filePath()`. The decorative seed themes (`:/resources/themes/*.json`) are looked up in the RUNTIME qrc — the consuming app ships them (Unisic does); with none present, seeding is a no-op. |
+| `src/ConfigPath.h` | Rewritten from the hardcoded Unisic path (dev-build/legacy/sounds helpers) into a parameterized `UnisicKit` namespace: `setConfigName()` names the config once at startup, `filePath()`/`configDir()` derive from it. Defaults to `"unisic"`, so the historical path is unchanged. 45ff731 sync adds `setConfigFilePath()` - a full-path override for apps whose historical file name does not follow the `<name>/<name>.conf` derivation (Unisic's dev build keeps `unisic-dev/unisic.conf`); `configDir()` follows the override's directory so `themes/` stays next to the config file. |
+| `src/theme/ThemeController.h/.cpp` | Synced to 45ff731 (custom-theme JSON scan/hot-reload/seeding, `themesFolder()`, watcher). Adaptation re-applied: `UnisicConfig::filePath()` → `UnisicKit::filePath()`. The decorative seed themes (`:/resources/themes/*.json`) are looked up in the RUNTIME qrc - the consuming app ships them (Unisic does); with none present, seeding is a no-op. |
 | `qml/Theme.qml`, `qml/components/*.qml` | `import Unisic` → `import Unisic.Kit` (the kit's QML module URI). Theme.qml synced to 45ff731: decorative palettes (Catppuccin ×2, Dracula, Nord, Gruvbox) moved OUT of `_defs` into the app-seeded JSON files resolved via `ThemeController.customDefs`; recording-overlay tokens (`recBadge*`, `countdown*`, `keystroke*`) added. |
-| `qml/components/USwitch.qml`, `qml/components/VideoPreview.qml` | Genericized illustrative comments that named the app facade (`App.settings.x`, `App.capVideoPlayback`); no functional/binding change — both components were already self-contained via their own properties/signals. |
+| `qml/components/USwitch.qml`, `qml/components/VideoPreview.qml` | Genericized illustrative comments that named the app facade (`App.settings.x`, `App.capVideoPlayback`); no functional/binding change - both components were already self-contained via their own properties/signals. |
 | `qml/components/UShortcutRecorder.qml` | Genericized off the app facade: `App.formatShortcut(key, mods, scanCode)` → `property var formatKey` (host-supplied function, same signature), `App.setShortcutRecording(bool)` → `signal captureStateChanged(bool)` (also emitted `false` from `Component.onDestruction`). Visuals/behaviour unchanged. |
 | `qml/components/UShortcutList.qml` | Passes `formatKey` through to its embedded recorder and re-emits `captureStateChanged`. |
 | `qml/components/ColorDot.qml`, `SidebarItem.qml`, `UHoverTip.qml`, `UIconButton.qml`, `UTextField.qml`, `resources/icons/sym/configure.svg` | Synced verbatim to 45ff731 (+ import swap where applicable). |
 
-### Extracted (NOT verbatim copies — lifted out of larger upstream files)
+### Extracted (NOT verbatim copies - lifted out of larger upstream files)
 
 | File | Extracted from | What / why |
 | --- | --- | --- |
 | `src/SettingMacro.h` | `unisic:src/Settings.h` | Just the `U_SETTING` macro block (getter / early-return setter / debounce-timer start / NOTIFY emit), byte-identical, plus include guard and the `<QSettings>`/`<QTimer>` includes the macro operates on. The `Settings` class itself is NOT copied. |
-| `src/media/FfmpegUtil.h`, `src/media/FfmpegUtil.cpp` | `unisic:src/record/GifRecorder.cpp` | The ffmpeg encoder probe (thread-safe magic-static cache + `encoderUsable`/`hardwareEncoderAvailable`), the GIF palettegen/paletteuse filter builders, and the non-blocking `stopProcess()` QProcess escalation. Lifted into a free-function `FfmpegUtil` namespace (no `GifRecorder` members); `stopProcess` broadens its disconnect from `p→this` to all of `p`'s connections since there is no owning object. No recording logic copied. 45ff731 sync: `hardwareEncoderAvailable` gained the upstream `av1-nvenc` id, and `GifRecorder::hardwareEncoderWorks` (the does-it-actually-encode probe with its mutex-guarded cache) moved here as `FfmpegUtil::hardwareEncoderWorks` — unisic's `GifRecorder` now calls these instead of carrying copies. |
+| `src/media/FfmpegUtil.h`, `src/media/FfmpegUtil.cpp` | `unisic:src/record/GifRecorder.cpp` | The ffmpeg encoder probe (thread-safe magic-static cache + `encoderUsable`/`hardwareEncoderAvailable`), the GIF palettegen/paletteuse filter builders, and the non-blocking `stopProcess()` QProcess escalation. Lifted into a free-function `FfmpegUtil` namespace (no `GifRecorder` members); `stopProcess` broadens its disconnect from `p→this` to all of `p`'s connections since there is no owning object. No recording logic copied. 45ff731 sync: `hardwareEncoderAvailable` gained the upstream `av1-nvenc` id, and `GifRecorder::hardwareEncoderWorks` (the does-it-actually-encode probe with its mutex-guarded cache) moved here as `FfmpegUtil::hardwareEncoderWorks` - unisic's `GifRecorder` now calls these instead of carrying copies. |
 
 ### Feature additions (kit-side, ahead of upstream)
 
 Additive, default-off changes authored in the kit for Unisic Studio M2
 (PipeWire cursor-metadata capture). Existing upstream call sites compile and
-behave identically when the new options are not requested — when syncing these
+behave identically when the new options are not requested - when syncing these
 files from upstream, re-apply the additions on top rather than reverting them.
 
 Upstream unisic later absorbed this feature (with fixes of its own); at the
@@ -117,23 +117,26 @@ kit-only surface re-applied on top, so the kit is now a strict superset:
 
 | File | State after the 45ff731 sync |
 | --- | --- |
-| `src/capture/ScreenCastSession.h/.cpp` | Upstream internals + the kit API kept: `enum class CursorMode { Hidden, Embedded, Metadata }` (upstream renamed the enumerators `CursorHidden/…` — the kit keeps the scoped names Studio compiles against), both `start()` overloads, internal Metadata→Embedded fallback, `effectiveCursorMode()`. New from upstream: public static `availableCursorModes()` (success-only cache), which `selectSources` now also uses. |
-| `src/record/PipeWireGrabber.h/.cpp` | Re-based on upstream 45ff731 (premultiplied-alpha cursor formats, atomic `m_format`, decode-bitmap-on-every-`bitmap_offset` fix for KWin's in-place id reuse — the per-id shape cache is GONE, consumers re-key by id; transitive `SPA_PARAM_Meta` include fix for AppImage CI; no `pw_stream_get_time_n`). Kit extras re-applied: `latestFrame(out, seq, qint64 *ptsNs)` out-param + `m_ptsNs` stamped from the same CLOCK_MONOTONIC chain as `CursorSample::tMonoNs` (pts now computed for every buffer, not only under `wantCursorMeta`), cursor-state reset in `start()` for instance reuse, `uint32_t` cast in `SPA_FRACTION` (-Wnarrowing). |
+| `src/capture/ScreenCastSession.h/.cpp` | Upstream internals + the kit API kept: `enum class CursorMode { Hidden, Embedded, Metadata }` (upstream renamed the enumerators `CursorHidden/…` - the kit keeps the scoped names Studio compiles against), both `start()` overloads, internal Metadata→Embedded fallback, `effectiveCursorMode()`. New from upstream: public static `availableCursorModes()` (success-only cache), which `selectSources` now also uses. |
+| `src/record/PipeWireGrabber.h/.cpp` | Re-based on upstream 45ff731 (premultiplied-alpha cursor formats, atomic `m_format`, decode-bitmap-on-every-`bitmap_offset` fix for KWin's in-place id reuse - the per-id shape cache is GONE, consumers re-key by id; transitive `SPA_PARAM_Meta` include fix for AppImage CI; no `pw_stream_get_time_n`). Kit extras re-applied: `latestFrame(out, seq, qint64 *ptsNs)` out-param + `m_ptsNs` stamped from the same CLOCK_MONOTONIC chain as `CursorSample::tMonoNs` (pts now computed for every buffer, not only under `wantCursorMeta`), cursor-state reset in `start()` for instance reuse, `uint32_t` cast in `SPA_FRACTION` (-Wnarrowing). |
 
 ### Authored for the kit (no upstream origin)
 
-- `CMakeLists.txt` — static `unisic-kit` library + `Unisic.Kit` QML module.
-  Modelled on Unisic's `CMakeLists.txt` (optional-PipeWire guard, `qmlmod/`
-  output dir, symbolic-icon resource prefix) but reduced to the kit's sources.
-- `src/capture/KWinScreencasting.{h,cpp}` — client of KWin's
+- `CMakeLists.txt` - static `unisic-kit` library + `Unisic.Kit` QML module.
+  Modelled on Unisic's `CMakeLists.txt` (the same mandatory-dependency probes
+  that stop the configure by name, `qmlmod/` output dir, symbolic-icon resource
+  prefix) but reduced to the kit's sources.
+- `src/capture/KWinScreencasting.{h,cpp}` - client of KWin's
   `zkde_screencast_unstable_v1` protocol (adapted from KDE Spectacle's
   `screencasting.{h,cpp}`, LGPL-2.1/3.0, SPDX headers kept): the app names the
   capture source (output / global-logical region / window uuid) and receives a
-  PipeWire node id on the default session daemon — no portal share dialog, no
-  restore tokens. Optional `HAVE_KWIN_SCREENCAST` build (Qt6 WaylandClient +
-  GuiPrivate + plasma-wayland-protocols); the consuming app's desktop file must
-  carry `X-KDE-Wayland-Interfaces=zkde_screencast_unstable_v1` or
-  `isAvailable()` stays false and consumers fall back to the portal.
+  PipeWire node id on the default session daemon - no portal share dialog, no
+  restore tokens. `HAVE_KWIN_SCREENCAST` is a hard build requirement (Qt6
+  WaylandClient + the Qt6 GUI private headers + plasma-wayland-protocols), so
+  the code is in every build; what still gates it at RUNTIME is the consuming
+  app's desktop file, which must carry
+  `X-KDE-Wayland-Interfaces=zkde_screencast_unstable_v1` or `isAvailable()`
+  stays false and consumers fall back to the portal.
   `PipeWireGrabber::start()` takes fd `-1` for this path (default-daemon
   connect instead of the portal's `OpenPipeWireRemote` fd).
 - `src/record/IScreenGrabber.h` - the abstract frame-source base both grabbers
@@ -142,14 +145,14 @@ kit-only surface re-applied on top, so the kit is now a strict superset:
   here out of `PipeWireGrabber.h`). `start()` is deliberately NOT on the base -
   its arguments are per-backend (portal fd + node id vs. a root rect). A
   consumer's encoder holds an `IScreenGrabber *` and never learns which backend
-  it got. Always compiled, so the signal wiring exists even with every optional
-  backend off.
+  it got. Always compiled - as, since the no-optional-dependencies rule, is
+  every backend behind it.
 - `src/record/X11ShmGrabber.{h,cpp}` - XShm frame capture on a producer thread
   with its own `XOpenDisplay` (Xlib is not thread-safe across Qt's connection),
   falling back to `XGetImage` when `XShmAttach` fails; publishes into a 3-slot
   rotating pool under the same `++seq` contract as `PipeWireGrabber`, and polls
   `XFixesGetCursorImage` for `CursorSample`s because a root-window grab does not
-  contain the hardware cursor. Optional `HAVE_X11`.
+  contain the hardware cursor. `HAVE_X11`, a hard build requirement.
 - `qml/UKeys.qml` - the design system's ONE keyboard-activation rule
   (`activate`/`claim`/`unmodified`), extracted from the guard that used to be
   hand-copied into every focusable component. Consumers call it too: an app-side
@@ -184,7 +187,7 @@ kit-only surface re-applied on top, so the kit is now a strict superset:
   display, no thread). Grabs each combo across the Caps/Num lock mask variants,
   reports `XGrabKey` `BadAccess` back as a conflict id list. The header stays
   free of any `<X11/...>` include so Xlib's macros (`None`, `Bool`, `KeyPress`)
-  do not leak into consumers. Optional `HAVE_X11_HOTKEYS`.
+  do not leak into consumers. `HAVE_X11_HOTKEYS`, a hard build requirement.
 
 ## Diffing / syncing against upstream
 

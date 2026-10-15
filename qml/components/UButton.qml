@@ -36,7 +36,7 @@ Rectangle {
                                  ? (_hovered ? Theme.alpha(Theme.accent, 0.14) : "transparent")
                                  : (_hovered ? Qt.lighter(_base, 1.12) : _base)
 
-    implicitWidth: row.implicitWidth + (compact ? 28 : 40)
+    implicitWidth: Math.ceil(row.implicitWidth) + (compact ? 28 : 40)
     implicitHeight: compact ? 34 : 42
     radius: height / 2
     opacity: root.enabled ? 1.0 : 0.4

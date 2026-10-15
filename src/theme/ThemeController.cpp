@@ -1,5 +1,8 @@
 #include "ThemeController.h"
 #include "ThemeJson.h"
+#include <QDBusConnection>
+#include <QDBusMessage>
+#include <QDBusVariant>
 #include <QDesktopServices>
 #include <QDir>
 #include <QEvent>
@@ -29,6 +32,32 @@ ThemeController::ThemeController(QObject *parent) : QObject(parent)
         connect(hints, &QStyleHints::colorSchemeChanged,
                 this, &ThemeController::scheduleSystemBump);
     }
+    // The desktop's own light/dark preference, from the portal. GNOME keeps it
+    // ONLY there (org.gnome.desktop.interface color-scheme), and Qt on GNOME
+    // with a GTK3 theme such as Adwaita reported Light under 'prefer-dark', so
+    // the System theme came up light (#118). One blocking read, capped at
+    // 250 ms so a missing or hung portal costs startup at most that, then the
+    // change signal keeps it live.
+    QDBusConnection bus = QDBusConnection::sessionBus();
+    QDBusMessage read = QDBusMessage::createMethodCall(
+        QStringLiteral("org.freedesktop.portal.Desktop"),
+        QStringLiteral("/org/freedesktop/portal/desktop"),
+        QStringLiteral("org.freedesktop.portal.Settings"), QStringLiteral("ReadOne"));
+    read << QStringLiteral("org.freedesktop.appearance") << QStringLiteral("color-scheme");
+    const QDBusMessage reply = bus.call(read, QDBus::Block, 250);
+    if (reply.type() == QDBusMessage::ReplyMessage && !reply.arguments().isEmpty())
+        m_portalScheme = portalScheme(reply.arguments().constFirst());
+    // The three inputs systemDark() weighs, so a "wrong theme on my desktop"
+    // report carries its own answer in the log.
+    qInfo().noquote() << "ThemeController: portal color-scheme" << m_portalScheme
+                      << "Qt hint" << int(QGuiApplication::styleHints()->colorScheme())
+                      << "palette window" << qApp->palette().color(QPalette::Window).name()
+                      << "-> systemDark" << systemDark();
+    bus.connect(QStringLiteral("org.freedesktop.portal.Desktop"),
+                QStringLiteral("/org/freedesktop/portal/desktop"),
+                QStringLiteral("org.freedesktop.portal.Settings"),
+                QStringLiteral("SettingChanged"), this,
+                SLOT(onPortalSettingChanged(QString,QString,QDBusVariant)));
     // Palette changes arrive as QEvent::ApplicationPaletteChange on qApp
     // (QGuiApplication::paletteChanged is deprecated since Qt 6.0).
     qApp->installEventFilter(this);
@@ -150,8 +179,36 @@ void ThemeController::bump()
     emit revChanged();
 }
 
+// color-scheme: 0 no preference, 1 prefer dark, 2 prefer light. The value
+// may come wrapped in one or more variants depending on the portal version.
+int ThemeController::portalScheme(const QVariant &value)
+{
+    QVariant v = value;
+    while (v.canConvert<QDBusVariant>() && v.userType() == qMetaTypeId<QDBusVariant>())
+        v = v.value<QDBusVariant>().variant();
+    const uint scheme = v.toUInt();
+    return scheme <= 2 ? int(scheme) : 0;
+}
+
+void ThemeController::onPortalSettingChanged(const QString &ns, const QString &key,
+                                             const QDBusVariant &value)
+{
+    if (ns != QLatin1String("org.freedesktop.appearance") || key != QLatin1String("color-scheme"))
+        return;
+    const int scheme = portalScheme(value.variant());
+    if (scheme == m_portalScheme)
+        return;
+    m_portalScheme = scheme;
+    scheduleSystemBump();
+}
+
 bool ThemeController::systemDark() const
 {
+    // The portal is the desktop's stated preference; Qt's hint and the palette
+    // below are guesses from the toolkit theme, which on GNOME is not the same
+    // thing.
+    if (m_portalScheme != 0)
+        return m_portalScheme == 1;
     // Unknown is common on non-KDE/wlroots compositors — fall back to the
     // palette lightness heuristic there instead of always claiming light.
     if (auto *hints = QGuiApplication::styleHints()) {

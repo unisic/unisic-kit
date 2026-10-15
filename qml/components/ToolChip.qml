@@ -8,6 +8,7 @@ Rectangle {
     property string iconName: ""
     property string iconStyle: ""   // "", "custom" or "system" (editor tools)
     property string label: ""
+    property int iconSize: 18
     // TOGGLE or COMMAND, and this property is what tells them apart. A toggle
     // chip (a tool, a mode, bold/italic, fill on/off) binds `active` and its
     // pressed-in look IS a state; a command chip (Undo, Redo, Delete shape,
@@ -42,7 +43,7 @@ Rectangle {
         name: root.iconName
         iconStyle: root.iconStyle
         color: root.active ? Theme.textOnAccent : Theme.textPrimary
-        size: 18
+        size: root.iconSize
     }
     Text {
         visible: root.iconName === "" && root.icon !== ""
