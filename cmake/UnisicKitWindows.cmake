@@ -1,9 +1,10 @@
 # Windows (MinGW-w64, MSYS2 UCRT64) platform block of unisic-kit, included by
 # CMakeLists.txt in place of the Linux backends. Every Linux backend class keeps
 # its header and gets a *_win.cpp sibling: hotkeys are real (RegisterHotKey),
-# the recording grabbers and KWin screencasting are stubs that report
-# "unavailable", so the shared code that names them links and takes its
-# existing fallback path. Nothing here touches the Linux build.
+# the direct-grab recording source is real (X11ShmGrabber_win: DXGI Desktop
+# Duplication with a GDI fallback), PipeWire and KWin screencasting are stubs
+# that report "unavailable", so the shared code that names them links and
+# takes its existing fallback path. Nothing here touches the Linux build.
 
 target_sources(unisic-kit PRIVATE
     src/record/PipeWireGrabber.h src/record/PipeWireGrabber_win.cpp
@@ -11,6 +12,7 @@ target_sources(unisic-kit PRIVATE
     src/hotkeys/X11Hotkeys.h src/hotkeys/X11Hotkeys_win.cpp
     src/capture/KWinScreencasting.h src/capture/KWinScreencasting_win.cpp)
 target_link_libraries(unisic-kit PUBLIC user32)
+target_link_libraries(unisic-kit PRIVATE gdi32 d3d11 dxgi)
 
 # POSIX shims for MinGW (fsync, O_CLOEXEC, fcntl...), force-included so shared
 # sources need no #ifdef. PUBLIC because the app's TUs call the same functions.
