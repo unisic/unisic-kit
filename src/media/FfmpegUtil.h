@@ -22,6 +22,12 @@ const QSet<QString> &encoders();
 // failed (empty set), so a preferred encoder is kept rather than rejected.
 bool encoderUsable(const QString &name);
 
+// Whether this ffmpeg accepts -shortest_buf_duration (ffmpeg 6.0+). An older
+// one rejects the unknown option and refuses to start, so the flag is only
+// passed when this says yes. Cached and thread-safe like encoders(); false
+// when the probe itself failed.
+bool supportsShortestBufDuration();
+
 // Whether a hardware encoder is LISTED as usable now: "vaapi" needs h264_vaapi
 // AND a render node at /dev/dri/renderD128; "nvenc" needs h264_nvenc;
 // "av1-nvenc" (RTX 40+) needs av1_nvenc — the only hardware encoder a WebM can

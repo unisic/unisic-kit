@@ -49,6 +49,25 @@ bool encoderUsable(const QString &name)
     return encoders().contains(name) || encoders().isEmpty();
 }
 
+// "-h long" lists the expert per-file options, -shortest_buf_duration among
+// them since 6.0 (an OPT_EXPERT entry in fftools/ffmpeg_opt.c). ~130 ms and
+// ~15 KB of stdout, once per process.
+static bool probeShortestBufDuration()
+{
+    QProcess p;
+    p.start(QStringLiteral("ffmpeg"),
+            {QStringLiteral("-hide_banner"), QStringLiteral("-h"), QStringLiteral("long")});
+    if (!p.waitForFinished(5000))
+        return false;
+    return p.readAllStandardOutput().contains("-shortest_buf_duration");
+}
+
+bool supportsShortestBufDuration()
+{
+    static const bool cached = probeShortestBufDuration();
+    return cached;
+}
+
 QString gifPaletteGenFilter(int quality)
 {
     const int q = qBound(0, quality, 2);
