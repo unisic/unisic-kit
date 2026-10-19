@@ -1,6 +1,8 @@
 #include "X11ShmGrabber.h"
 
 #include <QDebug>
+#include <QGuiApplication>
+#include <QScreen>
 #include <chrono>
 #include <cstring>
 #include <ctime>
@@ -69,6 +71,21 @@ X11ShmGrabber::X11ShmGrabber(QObject *parent) : IScreenGrabber(parent) {}
 X11ShmGrabber::~X11ShmGrabber()
 {
     stop();
+}
+
+bool X11ShmGrabber::isAvailable()
+{
+    return QGuiApplication::platformName() == QLatin1String("xcb");
+}
+
+// QScreen geometry is logical; X server pixels are physical, so scale by the
+// device pixel ratio (they coincide on the common dpr==1 X11 setup).
+QRect X11ShmGrabber::screenRect(const QScreen *screen)
+{
+    const qreal dpr = screen->devicePixelRatio() > 0 ? screen->devicePixelRatio() : 1.0;
+    const QRect g = screen->geometry();
+    return QRect(qRound(g.x() * dpr), qRound(g.y() * dpr),
+                 qRound(g.width() * dpr), qRound(g.height() * dpr));
 }
 
 bool X11ShmGrabber::start(const QRect &rootRect, int maxFps, bool wantCursorMeta)

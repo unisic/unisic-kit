@@ -8,6 +8,8 @@
 #include <atomic>
 #include <thread>
 
+class QScreen;
+
 // Frame source for an X11 session: grabs a fixed root-window rect via the MIT-SHM
 // extension (XShmGetImage) on a private capture thread and keeps the most recent
 // frame, mirroring PipeWireGrabber's contract so GifRecorder's downstream
@@ -17,12 +19,23 @@
 // XShmGetImage from the root does NOT include the hardware cursor, so cursor
 // capture (wantCursorMeta) polls XFixesGetCursorImage each grab and feeds the
 // same CursorSample / cursorShapeChanged path the recorder already draws.
+//
+// The Windows build (X11ShmGrabber_win.cpp) serves the same contract from DXGI
+// Desktop Duplication with a GDI fallback, and samples the cursor from
+// GetCursorInfo, which its desktop image leaves out just the same.
 class X11ShmGrabber : public IScreenGrabber
 {
     Q_OBJECT
 public:
     explicit X11ShmGrabber(QObject *parent = nullptr);
     ~X11ShmGrabber() override;
+
+    // True when qApp runs on the platform this backend grabs: xcb on Linux,
+    // windows on Windows.
+    static bool isAvailable();
+    // The rect start() takes for the whole of `screen`, in this backend's
+    // native pixels.
+    static QRect screenRect(const QScreen *screen);
 
     // rootRect: the region to grab in ROOT-window (physical) pixels - a monitor
     // rect for full-screen, a region rect for region recording. maxFps caps the
