@@ -11,7 +11,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Kit needs no Widgets: ThemeController/IconImageProvider live entirely on
 # Gui + Quick + Qml, and the capture stack is Core + DBus + PipeWire.
 find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Quick Qml DBus)
-find_package(PkgConfig REQUIRED)
 
 # NOTHING BELOW IS OPTIONAL. Every dependency the kit probes for is mandatory
 # and a missing one stops the configure here, naming the package to install.
@@ -40,43 +39,50 @@ function(unisic_kit_require_failed HUMAN_NAME WHAT_BREAKS FEDORA DEBIAN ARCH SUS
         "  openSUSE: sudo zypper install ${SUSE}\n")
 endfunction()
 
-# PipeWire frame capture: PipeWireGrabber, the frame source on a Wayland
-# session (mirrors Unisic's CMakeLists).
-pkg_check_modules(PIPEWIRE IMPORTED_TARGET libpipewire-0.3)
-if(NOT PIPEWIRE_FOUND)
-    unisic_kit_require_failed("libpipewire-0.3"
-        "screen and region recording on a Wayland session"
-        "pipewire-devel" "libpipewire-0.3-dev" "libpipewire" "pipewire-devel")
-endif()
-# X11 (XShm + XFixes) frame capture: X11ShmGrabber, the frame source chosen at
-# runtime on an X11 session. Needs libX11 (core), libXext (MIT-SHM:
-# XShmGetImage) and libXfixes (hardware-cursor capture). One call for all three
-# because they share one imported target, which also means the check is
-# all-or-nothing: a missing libXfixes.pc alone reports the whole gate as not
-# found, and that is precisely how the Nix package lost X11 recording without
-# anyone noticing.
-pkg_check_modules(X11 IMPORTED_TARGET x11 xext xfixes)
-if(NOT X11_FOUND)
-    unisic_kit_require_failed("libX11 + libXext + libXfixes (all three)"
-        "screen recording on an X11 session (XShm capture)"
-        "libX11-devel libXext-devel libXfixes-devel"
-        "libx11-dev libxext-dev libxfixes-dev"
-        "libx11 libxext libxfixes"
-        "libX11-devel libXext-devel libXfixes-devel")
-endif()
-# Native X11 global hotkeys (XGrabKey) are a SEPARATE probe: they need libX11
-# (grab + keysyms) and libxcb (the KeyPress event Qt hands the native event
-# filter), but NOT the XShm/XFixes pair the frame grabber wants. Separate
-# probes, both mandatory, so the error message can name the right package
-# instead of a superset.
-pkg_check_modules(XCBX11 IMPORTED_TARGET x11 xcb)
-if(NOT XCBX11_FOUND)
-    unisic_kit_require_failed("libX11 + libxcb"
-        "global capture hotkeys on an X11 session without KGlobalAccel"
-        "libX11-devel libxcb-devel"
-        "libx11-dev libxcb1-dev"
-        "libx11 libxcb"
-        "libX11-devel libxcb-devel")
+# Windows has none of the libraries below. Its backends are the *_win.cpp
+# siblings added at the platform block further down, so every probe here is a
+# Linux one: a new Linux dependency goes inside this if() too.
+if(NOT WIN32)
+    find_package(PkgConfig REQUIRED)
+
+    # PipeWire frame capture: PipeWireGrabber, the frame source on a Wayland
+    # session (mirrors Unisic's CMakeLists).
+    pkg_check_modules(PIPEWIRE IMPORTED_TARGET libpipewire-0.3)
+    if(NOT PIPEWIRE_FOUND)
+        unisic_kit_require_failed("libpipewire-0.3"
+            "screen and region recording on a Wayland session"
+            "pipewire-devel" "libpipewire-0.3-dev" "libpipewire" "pipewire-devel")
+    endif()
+    # X11 (XShm + XFixes) frame capture: X11ShmGrabber, the frame source chosen at
+    # runtime on an X11 session. Needs libX11 (core), libXext (MIT-SHM:
+    # XShmGetImage) and libXfixes (hardware-cursor capture). One call for all three
+    # because they share one imported target, which also means the check is
+    # all-or-nothing: a missing libXfixes.pc alone reports the whole gate as not
+    # found, and that is precisely how the Nix package lost X11 recording without
+    # anyone noticing.
+    pkg_check_modules(X11 IMPORTED_TARGET x11 xext xfixes)
+    if(NOT X11_FOUND)
+        unisic_kit_require_failed("libX11 + libXext + libXfixes (all three)"
+            "screen recording on an X11 session (XShm capture)"
+            "libX11-devel libXext-devel libXfixes-devel"
+            "libx11-dev libxext-dev libxfixes-dev"
+            "libx11 libxext libxfixes"
+            "libX11-devel libXext-devel libXfixes-devel")
+    endif()
+    # Native X11 global hotkeys (XGrabKey) are a SEPARATE probe: they need libX11
+    # (grab + keysyms) and libxcb (the KeyPress event Qt hands the native event
+    # filter), but NOT the XShm/XFixes pair the frame grabber wants. Separate
+    # probes, both mandatory, so the error message can name the right package
+    # instead of a superset.
+    pkg_check_modules(XCBX11 IMPORTED_TARGET x11 xcb)
+    if(NOT XCBX11_FOUND)
+        unisic_kit_require_failed("libX11 + libxcb"
+            "global capture hotkeys on an X11 session without KGlobalAccel"
+            "libX11-devel libxcb-devel"
+            "libx11-dev libxcb1-dev"
+            "libx11 libxcb"
+            "libX11-devel libxcb-devel")
+    endif()
 endif()
 
 qt_standard_project_setup(REQUIRES 6.5)
@@ -173,6 +179,13 @@ target_link_libraries(unisic-kit PUBLIC
 file(GLOB UNISIC_KIT_SYM_ICONS CONFIGURE_DEPENDS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
      resources/icons/sym/*.svg)
 qt_add_resources(unisic-kit "sym_icons" PREFIX "/" FILES ${UNISIC_KIT_SYM_ICONS})
+
+# Windows swaps every platform backend below for a *_win.cpp sibling and sets
+# its own feature list, so the rest of this file is Linux only.
+if(WIN32)
+    include(cmake/UnisicKitWindows.cmake)
+    return()
+endif()
 
 target_sources(unisic-kit PRIVATE
     src/record/PipeWireGrabber.h src/record/PipeWireGrabber.cpp)
