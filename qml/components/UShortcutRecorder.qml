@@ -18,6 +18,10 @@ Rectangle {
     // captureStateChanged(true/false) brackets the recording so the app can
     // suspend its global hotkeys meanwhile; false is also emitted from
     // Component.onDestruction so a torn-down recorder can never leave them off.
+    // The host must also deliver keys the platform never reports as pressed:
+    // Windows posts no key-down for Print Screen, and Qt then drops its key-up,
+    // so the field sees nothing of a Print chord unless the host posts the
+    // press itself (Unisic: PrintKeyRelay, while captureStateChanged(true)).
     property var formatKey: null
     // Spoken name; defaults to the bound keys, or to the placeholder while the
     // field is empty.
@@ -26,6 +30,48 @@ Rectangle {
 
     signal recorded(string shortcut)
     signal captureStateChanged(bool active)
+
+    // Modifiers held right now while recording, so the field shows what it has
+    // read before the chord is complete ("Ctrl+Shift+...") instead of sitting
+    // on "Press shortcut..." with no sign that any key arrived. Same names and
+    // order as a portable key string, so the preview reads like the chip the
+    // finished chord becomes.
+    property int heldModifiers: 0
+    readonly property string heldText: {
+        const m = root.heldModifiers
+        const parts = []
+        if (m & Qt.MetaModifier) parts.push("Meta")
+        if (m & Qt.ControlModifier) parts.push("Ctrl")
+        if (m & Qt.AltModifier) parts.push("Alt")
+        if (m & Qt.ShiftModifier) parts.push("Shift")
+        return parts.join("+")
+    }
+
+    // The modifier a modifier KEY stands for, 0 for any other key. A press of
+    // Ctrl does not carry ControlModifier on every platform, and its release
+    // can still carry it, so the held set is corrected with the key itself.
+    function modifierOf(key) {
+        switch (key) {
+        case Qt.Key_Shift: return Qt.ShiftModifier
+        case Qt.Key_Control: return Qt.ControlModifier
+        case Qt.Key_Alt: return Qt.AltModifier
+        case Qt.Key_Meta:
+        case Qt.Key_Super_L:
+        case Qt.Key_Super_R: return Qt.MetaModifier
+        default: return 0
+        }
+    }
+
+    function tryRecord(event) {
+        // nativeScanCode lets the host's formatKey check the PHYSICAL key
+        // (layout-independent) - see Unisic's ShortcutFormat.h.
+        const value = root.formatKey
+                    ? root.formatKey(event.key, event.modifiers, event.nativeScanCode) : ""
+        if (value.length > 0) {
+            root.recorded(value)
+            root.endRecording()
+        }
+    }
 
     implicitWidth: addStyle ? label.implicitWidth + 28 : 220
     implicitHeight: addStyle ? 32 : 40
@@ -40,6 +86,7 @@ Rectangle {
     activeFocusOnTab: true
 
     function beginRecording() {
+        heldModifiers = 0
         recording = true
         forceActiveFocus()
         captureStateChanged(true)
@@ -49,6 +96,7 @@ Rectangle {
         if (!recording)
             return
         recording = false
+        heldModifiers = 0
         captureStateChanged(false)
     }
 
@@ -62,7 +110,8 @@ Rectangle {
         anchors.rightMargin: root.addStyle ? 0 : 14
         horizontalAlignment: root.addStyle ? Text.AlignHCenter : Text.AlignLeft
         verticalAlignment: Text.AlignVCenter
-        text: root.recording ? qsTr("Press shortcut...")
+        text: root.recording ? (root.heldText.length > 0 ? root.heldText + "+..."
+                                                         : qsTr("Press shortcut..."))
                             : (root.shortcut.length > 0 ? root.shortcut : root.placeholder)
         color: root.recording ? Theme.accent
              : root.addStyle ? Theme.accent
@@ -112,14 +161,15 @@ Rectangle {
             return
         }
 
-        // nativeScanCode lets the host's formatKey check the PHYSICAL key
-        // (layout-independent) — see Unisic's ShortcutFormat.h.
-        const value = root.formatKey
-                    ? root.formatKey(event.key, event.modifiers, event.nativeScanCode) : ""
-        if (value.length > 0) {
-            root.recorded(value)
-            root.endRecording()
-        }
+        root.heldModifiers = event.modifiers | root.modifierOf(event.key)
+        root.tryRecord(event)
+    }
+
+    Keys.onReleased: (event) => {
+        if (!root.recording)
+            return
+        event.accepted = true
+        root.heldModifiers = event.modifiers & ~root.modifierOf(event.key)
     }
 
     Accessible.role: Accessible.HotkeyField
