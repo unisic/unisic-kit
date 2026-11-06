@@ -6,9 +6,19 @@
 // or non-BGRA output, an area spanning two monitors, a driver that refuses
 // DuplicateOutput, and the time between losing a duplication and reopening it.
 //
-// Neither source contains the pointer, so cursor capture (wantCursorMeta)
-// samples GetCursorInfo on every tick and renders each new HCURSOR once, as
-// the X11 path does with XFixes.
+// The frames must never contain the pointer: with "Include mouse cursor" off
+// it stays out, and with it on the recorder draws it from cursor samples, so
+// cursor capture (wantCursorMeta) samples GetCursorInfo on every tick and
+// renders each new HCURSOR once, as the X11 path does with XFixes. BitBlt
+// leaves every pointer out. Duplication leaves out only a HARDWARE pointer: a
+// pointer Windows draws in software (a custom pointer colour or size, pointer
+// trails, some drivers) is composited into the desktop image it hands out, and
+// it then never reports that pointer as its own. So until duplication reports
+// the pointer on this output, the area the pointer can cover in a frame is
+// taken again from GDI and written over it. Measured on a custom-colour
+// pointer at 1920x1200: duplication had it in every frame, BitBlt in none; a
+// whole-frame BitBlt costs ~35 ms (half the frame rate), the patch next to
+// nothing, so the recording keeps duplication's frame rate.
 //
 // Coordinates: Qt 6 runs per-monitor DPI aware (v2), and the capture thread
 // inherits that, so DXGI desktop coordinates, BitBlt and GetCursorInfo all
@@ -90,6 +100,23 @@ public:
         return true;
     }
 
+    // The same grab for one part of the frame (in frame coordinates), written
+    // over that part of dst only: what papers over a software pointer.
+    bool grabArea(char *dst, const QRect &area)
+    {
+        if (!m_dib || !BitBlt(m_mem, area.x(), area.y(), area.width(), area.height(), m_screen,
+                              m_rect.x() + area.x(), m_rect.y() + area.y(), SRCCOPY | CAPTUREBLT))
+            return false;
+        GdiFlush();
+        const size_t stride = size_t(m_rect.width()) * 4;
+        const size_t offset = size_t(area.x()) * 4;
+        for (int y = area.top(); y <= area.bottom(); ++y)
+            std::memcpy(dst + stride * y + offset,
+                        static_cast<const char *>(m_bits) + stride * y + offset,
+                        size_t(area.width()) * 4);
+        return true;
+    }
+
     void close()
     {
         if (m_old)
@@ -164,6 +191,10 @@ public:
             return Unchanged;
         if (FAILED(hr))
             return Lost;
+        // The pointer fields are valid only on a frame that carries a mouse
+        // update; a software pointer never sends one.
+        if (fi.LastMouseUpdateTime.QuadPart != 0)
+            m_pointerVisible = fi.PointerPosition.Visible;
         Grab out = Unchanged;
         ComPtr<ID3D11Texture2D> tex;
         if (fi.LastPresentTime.QuadPart != 0 && SUCCEEDED(res.As(&tex))) {
@@ -193,8 +224,13 @@ public:
 
     bool isOpen() const { return bool(m_dup); }
 
+    // True once duplication has reported the pointer as a hardware pointer on
+    // this output, i.e. drawn over the image rather than into it.
+    bool pointerVisible() const { return m_pointerVisible; }
+
     void close()
     {
+        m_pointerVisible = false;
         m_staging.Reset();
         m_dup.Reset();
         m_ctx.Reset();
@@ -249,6 +285,7 @@ private:
 
     QRect m_rect;
     QPoint m_origin;
+    bool m_pointerVisible = false;
     ComPtr<ID3D11Device> m_dev;
     ComPtr<ID3D11DeviceContext> m_ctx;
     ComPtr<IDXGIOutputDuplication> m_dup;
@@ -283,6 +320,49 @@ public:
 
 private:
     HANDLE m_timer;
+};
+
+// The screen area a pointer image covers with its hotspot at `pos`. The shape's
+// size and hotspot are read once per HCURSOR. The margin absorbs a pointer
+// drawn a little larger than its bitmap (scaled for a monitor's DPI); a shape
+// that cannot be read gets the largest pointer Windows draws, 256 px (the top
+// accessibility size, and renderCursor's cap), on every side.
+class PointerExtent
+{
+public:
+    QRect around(HCURSOR cursor, const QPoint &pos)
+    {
+        if (cursor != m_cursor) {
+            m_cursor = cursor;
+            m_known = false;
+            ICONINFO ii = {};
+            if (GetIconInfo(cursor, &ii)) {
+                BITMAP bm = {};
+                if (ii.hbmColor && GetObjectW(ii.hbmColor, sizeof(bm), &bm)) {
+                    m_size = QSize(bm.bmWidth, bm.bmHeight);
+                    m_known = true;
+                } else if (ii.hbmMask && GetObjectW(ii.hbmMask, sizeof(bm), &bm)) {
+                    m_size = QSize(bm.bmWidth, bm.bmHeight / 2); // AND over XOR mask
+                    m_known = true;
+                }
+                m_hotspot = QPoint(int(ii.xHotspot), int(ii.yHotspot));
+                if (ii.hbmMask)
+                    DeleteObject(ii.hbmMask);
+                if (ii.hbmColor)
+                    DeleteObject(ii.hbmColor);
+            }
+        }
+        if (!m_known)
+            return QRect(pos - QPoint(256, 256), QSize(512, 512));
+        const int margin = qMax(16, qMax(m_size.width(), m_size.height()) / 2);
+        return QRect(pos - m_hotspot, m_size).adjusted(-margin, -margin, margin, margin);
+    }
+
+private:
+    HCURSOR m_cursor = nullptr;
+    bool m_known = false;
+    QPoint m_hotspot;
+    QSize m_size;
 };
 
 // HCURSOR ids are USER handles, which carry 32 significant bits even in a
@@ -501,6 +581,8 @@ void X11ShmGrabber::captureLoop()
     // each time it (re)opens, one GDI grab supplies the current picture; every
     // change after that arrives as a duplication frame.
     bool seeded = false;
+    PointerExtent pointerExtent;
+    QRect lastPointerArea; // screen area of the pointer at the previous tick
 
     FrameTimer timer;
     const qint64 intervalNs = 1000000000LL / m_maxFps;
@@ -514,14 +596,39 @@ void X11ShmGrabber::captureLoop()
             seeded = false;
         }
 
+        // The pointer moves without the desktop presenting, so it is sampled
+        // every tick, not only on a new frame. It also says where a software
+        // pointer can sit in this tick's duplication frame: that frame was
+        // presented after the previous tick's sample and before this one, so
+        // anywhere between the two positions.
+        CURSORINFO ci = {};
+        ci.cbSize = sizeof(ci);
+        const bool haveCursor = GetCursorInfo(&ci);
+        const bool showing = haveCursor && (ci.flags & CURSOR_SHOWING) && ci.hCursor;
+        const QPoint p(int(ci.ptScreenPos.x), int(ci.ptScreenPos.y));
+        const QRect pointerArea = showing ? pointerExtent.around(ci.hCursor, p) : QRect();
+        const QRect frameArea = (pointerArea | lastPointerArea)
+                                    .translated(-rect.topLeft())
+                                    .intersected(QRect(0, 0, w, h));
+        lastPointerArea = pointerArea;
+        // Until duplication reports the pointer as its own on this output, it
+        // may be baked into the frame: that area is taken again from GDI.
+        const bool patchPointer = !frameArea.isEmpty() && !dxgi.pointerVisible();
+
         QByteArray &back = m_pool[m_poolIdx];
         back.resize(frameBytes);
         bool fresh = false;
         if (dxgi.isOpen()) {
             switch (dxgi.grab(back.data())) {
             case DxgiSource::NewFrame:
-                fresh = true;
-                gdi.close();
+                if (patchPointer) {
+                    // A frame that cannot be patched would carry the pointer:
+                    // keep the previous one instead.
+                    fresh = gdi.open(rect) && gdi.grabArea(back.data(), frameArea);
+                } else {
+                    fresh = true;
+                    gdi.close();
+                }
                 break;
             case DxgiSource::Unchanged:
                 break;
@@ -544,14 +651,8 @@ void X11ShmGrabber::captureLoop()
             }
         }
 
-        // The pointer moves without the desktop presenting, so it is sampled
-        // every tick, not only on a new frame.
         QVector<CursorSample> cursor;
-        CURSORINFO ci = {};
-        ci.cbSize = sizeof(ci);
-        if (m_wantCursorMeta && GetCursorInfo(&ci)) {
-            const bool showing = (ci.flags & CURSOR_SHOWING) && ci.hCursor;
-            const QPoint p(int(ci.ptScreenPos.x), int(ci.ptScreenPos.y));
+        if (m_wantCursorMeta && haveCursor) {
             CursorSample s;
             s.tMonoNs = t0;
             s.visible = showing && rect.contains(p);

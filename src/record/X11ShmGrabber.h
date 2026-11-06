@@ -22,7 +22,9 @@ class QScreen;
 //
 // The Windows build (X11ShmGrabber_win.cpp) serves the same contract from DXGI
 // Desktop Duplication with a GDI fallback, and samples the cursor from
-// GetCursorInfo, which its desktop image leaves out just the same.
+// GetCursorInfo. A pointer Windows draws in software IS in the duplicated
+// image, so the area under it is taken again from GDI, which leaves every
+// pointer out.
 class X11ShmGrabber : public IScreenGrabber
 {
     Q_OBJECT
