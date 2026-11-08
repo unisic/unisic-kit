@@ -52,68 +52,82 @@ Popup {
         border.color: Theme.divider
     }
 
-    // Scroller + column: a long message in a short window scrolls instead of
-    // pushing the buttons out of the dialog (UFlyout rule 3). With room it is
-    // inert - contentHeight equals the height and it cannot be flicked.
-    contentItem: Flickable {
-        id: bodyFlick
-        implicitHeight: UFlyout.fitHeight(root.parent, bodyCol.implicitHeight
-                                          + root.topPadding + root.bottomPadding)
-                        - root.topPadding - root.bottomPadding
-        contentWidth: width
-        contentHeight: bodyCol.implicitHeight
-        clip: true
-        interactive: contentHeight > height
-        boundsBehavior: Flickable.StopAtBounds
+    // Scroller + pinned footer: a long message in a short window scrolls
+    // instead of pushing the buttons out of the dialog (UFlyout rule 3). With
+    // room it is inert - contentHeight equals the height and it cannot be
+    // flicked. The buttons stay OUTSIDE the scroller: inside it they scrolled
+    // away with the text, and its clip ran flush along the confirm button's
+    // right and bottom edges and cut the filled button's glow off straight
+    // (user-reported on the settings "?" help, which scrolls in a short
+    // window). USystemCheck, UUpdatePrompt and UColorPopup use the same shell.
+    contentItem: Column {
+        id: dialogCol
+        // Everything below the scroller, so the scroller can be given the rest.
+        readonly property real footerHeight: footerGap.height + buttonRow.height + 2 * spacing
+        spacing: Theme.spacingM
 
-        MiddleScroll { flickable: bodyFlick }
-        WheelBoost { flickable: bodyFlick }
+        // On the contentItem, not on the Popup: the Accessible attached type
+        // only binds to an Item, and a Popup is not one.
+        Accessible.role: Accessible.Dialog
+        Accessible.name: root.title
+        Accessible.description: root.text
 
-        Column {
-            id: bodyCol
-            width: bodyFlick.width
-            spacing: Theme.spacingM
+        Flickable {
+            id: bodyFlick
+            width: parent.width
+            height: UFlyout.fitHeight(root.parent, bodyCol.implicitHeight + dialogCol.footerHeight
+                                      + root.topPadding + root.bottomPadding)
+                    - root.topPadding - root.bottomPadding - dialogCol.footerHeight
+            contentWidth: width
+            contentHeight: bodyCol.implicitHeight
+            clip: true
+            interactive: contentHeight > height
+            boundsBehavior: Flickable.StopAtBounds
 
-            // On the contentItem, not on the Popup: the Accessible attached type
-            // only binds to an Item, and a Popup is not one.
-            Accessible.role: Accessible.Dialog
-            Accessible.name: root.title
-            Accessible.description: root.text
+            MiddleScroll { flickable: bodyFlick }
+            WheelBoost { flickable: bodyFlick }
 
-            Text {
-                width: parent.width
-                text: root.title
-                color: Theme.textPrimary
-                font.pixelSize: Theme.fontL
-                font.weight: Font.DemiBold
-                wrapMode: Text.WordWrap
-            }
-            Text {
-                width: parent.width
-                text: root.text
-                color: Theme.textSecondary
-                font.pixelSize: Theme.fontM
-                wrapMode: Text.WordWrap
-            }
-            Item { width: 1; height: Theme.spacingS }
-            Row {
-                anchors.right: parent.right
-                spacing: Theme.spacingS
-                UButton {
-                    id: cancelButton
-                    visible: root.showCancel
-                    text: root.cancelText
-                    variant: "ghost"
-                    compact: true
-                    onClicked: root.close()
+            Column {
+                id: bodyCol
+                width: bodyFlick.width
+                spacing: Theme.spacingM
+
+                Text {
+                    width: parent.width
+                    text: root.title
+                    color: Theme.textPrimary
+                    font.pixelSize: Theme.fontL
+                    font.weight: Font.DemiBold
+                    wrapMode: Text.WordWrap
                 }
-                UButton {
-                    id: confirmButton
-                    text: root.confirmText
-                    variant: root.destructive ? "danger" : "filled"
-                    compact: true
-                    onClicked: { root.close(); root.accepted() }
+                Text {
+                    width: parent.width
+                    text: root.text
+                    color: Theme.textSecondary
+                    font.pixelSize: Theme.fontM
+                    wrapMode: Text.WordWrap
                 }
+            }
+        }
+        Item { id: footerGap; width: 1; height: Theme.spacingS }
+        Row {
+            id: buttonRow
+            anchors.right: parent.right
+            spacing: Theme.spacingS
+            UButton {
+                id: cancelButton
+                visible: root.showCancel
+                text: root.cancelText
+                variant: "ghost"
+                compact: true
+                onClicked: root.close()
+            }
+            UButton {
+                id: confirmButton
+                text: root.confirmText
+                variant: root.destructive ? "danger" : "filled"
+                compact: true
+                onClicked: { root.close(); root.accepted() }
             }
         }
     }
