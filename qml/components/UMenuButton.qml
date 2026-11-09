@@ -23,11 +23,20 @@ Rectangle {
     // Keeps menus usable in dense action rows without creating a separate,
     // subtly different icon-menu control.
     property bool iconOnly: false
+    // Drawn like a ToolChip (no fill until hovered or open), for a menu that
+    // sits in a row of chips, where a tonal pill reads as an active tool.
+    property bool flat: false
     property var actions: []
     // Read-only for the caller: the menu is on the window overlay, so a trigger
     // that lives in a hover-revealed strip has no other way to know it must
     // stay up while its own menu is open.
     readonly property bool menuOpen: popup.opened
+    // A context menu: a hidden (visible: false) button lends its list to
+    // `anchorItem`, a point-sized Item the caller drops under the pointer, and
+    // opens it with open(). preferAbove: false then puts it below the pointer,
+    // where a context menu is expected. Both default to the trigger case.
+    property Item anchorItem: root
+    property bool preferAbove: true
     // Spoken name. Falls back to the visible text, or to the tooltip when the
     // trigger is icon-only and has no visible text at all.
     property string accessibleName: ""
@@ -46,6 +55,7 @@ Rectangle {
         popup._kb = fromKeyboard === true
         popup.open()
     }
+    function open() { root._openMenu(false) }
     // Pointer and AT-SPI Press.
     function _toggleMenu() {
         if (!root.enabled)
@@ -77,10 +87,11 @@ Rectangle {
     readonly property bool _hovered: mouse.containsMouse && !mouse.pressed
     implicitWidth: iconOnly ? 38 : rowC.implicitWidth + 34
     implicitHeight: 42
-    radius: height / 2
+    radius: flat ? Theme.radiusM : height / 2
     opacity: root.enabled ? 1.0 : 0.4
-    color: (popup.opened || _hovered) ? Qt.lighter(Theme.tertiary, 1.12) : Theme.tertiary
-    border.width: 1
+    color: flat ? ((popup.opened || _hovered) ? Theme.alpha(Theme.accent, 0.18) : "transparent")
+                : ((popup.opened || _hovered) ? Qt.lighter(Theme.tertiary, 1.12) : Theme.tertiary)
+    border.width: flat && !popup.opened ? 0 : 1
     border.color: popup.opened ? Theme.accent : Theme.divider
     Behavior on color { ColorAnimation { duration: Theme.animFast } }
     scale: mouse.pressed ? 0.96 : 1.0
@@ -170,29 +181,33 @@ Rectangle {
         // Anchored to the TRIGGER, contained by UFlyout's rule: see UFlyout.qml
         // for why the parent is the trigger and not the overlay, why `margins`
         // is what keeps this inside the window, and why the size is capped.
-        parent: root
+        parent: root.anchorItem
         margins: UFlyout.margin
         // Recomputed on open (onAboutToShow) so newly-bound actions are measured.
         // (Not named contentWidth - that shadows QQuickPopup's final property.)
         property real measuredWidth: 220
-        width: UFlyout.fitWidth(root._overlay, Math.max(root.width, measuredWidth))
+        width: UFlyout.fitWidth(root._overlay, Math.max(root.anchorItem.width, measuredWidth))
 
         // --- containment: UFlyout's rule, and these lines go together -------
         // The side the menu is on: preferring ABOVE (the action bar sits on the
         // window's bottom edge), chosen when it opens and then held - see
         // UFlyout.qml (4). Capped to the room on that side, so a long menu can
         // never be taller than what is free above its own trigger; menuFlick
-        // below scrolls whatever the cap cut off.
+        // below scrolls whatever the cap cut off. A context menu takes the
+        // window cap only: its anchor is a point, not a control, so when
+        // neither side has room it slides over the pointer (Qt's clamp) the way
+        // a desktop context menu does, instead of hiding its last rows.
         property bool flyUp: true
         readonly property real flyWant: col.implicitHeight + 12
         readonly property var flyFit: popup.visible
-                                      ? UFlyout.rooms(root, root._overlay, popup.flyWant)
+                                      ? UFlyout.rooms(root.anchorItem, root._overlay, popup.flyWant)
                                       : null
         onFlyFitChanged: popup.flyUp = UFlyout.sideNow(popup.flyUp, popup.flyFit,
-                                                       popup.opened, true)
+                                                       popup.opened, root.preferAbove)
         height: UFlyout.fitHeight(root._overlay, popup.flyWant,
-                                  UFlyout.roomOn(popup.flyFit, popup.flyUp))
-        y: UFlyout.offsetY(popup, root, popup.flyUp)
+                                  root.anchorItem === root
+                                      ? UFlyout.roomOn(popup.flyFit, popup.flyUp) : undefined)
+        y: UFlyout.offsetY(popup, root.anchorItem, popup.flyUp)
         z: catcher.z + 1
         padding: 6
         focus: true
@@ -203,7 +218,8 @@ Rectangle {
         // everything about staying inside the window is Qt's, via `margins`.
         onAboutToShow: {
             measuredWidth = root.measureContentWidth()
-            popup.flyUp = UFlyout.sideAtOpen(root, root._overlay, popup.flyWant, true)
+            popup.flyUp = UFlyout.sideAtOpen(root.anchorItem, root._overlay, popup.flyWant,
+                                              root.preferAbove)
         }
 
         // --- keyboard navigation of the OPEN menu ---
@@ -257,10 +273,15 @@ Rectangle {
         }
         function _focusFirst() { popup._walk(null, 1) }
         // Close and hand the keyboard back to the trigger: closing a popup
-        // otherwise drops the user out of the tab order entirely.
+        // otherwise drops the user out of the tab order entirely. A hidden
+        // trigger cannot hold it; its owner restores focus on menuOpen.
         function _dismiss() {
             popup.close()
-            root.forceActiveFocus(Qt.OtherFocusReason)
+            popup._focusBack()
+        }
+        function _focusBack() {
+            if (root.visible)
+                root.forceActiveFocus(Qt.OtherFocusReason)
         }
 
         // A Flickable does not scroll itself to follow the focus - so a
@@ -347,7 +368,7 @@ Rectangle {
                                 const byKey = mRow.activeFocus
                                 popup.close()
                                 if (byKey)
-                                    root.forceActiveFocus(Qt.OtherFocusReason)
+                                    popup._focusBack()
                                 modelData.trigger()
                             }
                             // Rows hold the real focus INSIDE the open popup, so

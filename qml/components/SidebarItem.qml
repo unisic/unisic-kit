@@ -9,19 +9,23 @@ Rectangle {
     property bool active: false
     property string accessibleName: ""
     property string accessibleDescription: ""
+    // Icon above a short label, for a narrow icon rail. Off by default: the
+    // wide sidebar row stays exactly as it was for every existing caller.
+    property bool stacked: false
     signal clicked()
 
     function _activate() { if (root.enabled) root.clicked() }
 
     width: parent ? parent.width : 200
-    height: 38
-    radius: Theme.radiusS
-    color: active ? Theme.tertiary
+    height: stacked ? 56 : 38
+    radius: stacked ? Theme.radiusM : Theme.radiusS
+    color: active ? (stacked ? Theme.secondary : Theme.tertiary)
          : mouse.containsMouse ? Theme.alpha(Theme.tertiary, 0.45)
          : "transparent"
     Behavior on color { ColorAnimation { duration: Theme.animFast } }
 
     Row {
+        visible: !root.stacked
         anchors.verticalCenter: parent.verticalCenter
         anchors.left: parent.left
         anchors.leftMargin: 11
@@ -44,6 +48,32 @@ Rectangle {
             font.pixelSize: Theme.fontM
             font.weight: root.active ? Font.DemiBold : Font.Normal
             anchors.verticalCenter: parent.verticalCenter
+        }
+    }
+
+    Column {
+        visible: root.stacked
+        anchors.centerIn: parent
+        width: parent.width - 2 * Theme.spacingXS
+        spacing: 4
+        UIcon {
+            name: root.iconName
+            color: root.active ? Theme.accent : Theme.textSecondary
+            size: 20
+            anchors.horizontalCenter: parent.horizontalCenter
+        }
+        // German and Italian labels run past the tile at full size, so the
+        // text shrinks to fit before it elides.
+        Text {
+            width: parent.width
+            horizontalAlignment: Text.AlignHCenter
+            text: root.label
+            color: root.active ? Theme.textPrimary : Theme.textSecondary
+            font.pixelSize: 11
+            font.weight: root.active ? Font.DemiBold : Font.Medium
+            fontSizeMode: Text.HorizontalFit
+            minimumPixelSize: 9
+            elide: Text.ElideRight
         }
     }
 

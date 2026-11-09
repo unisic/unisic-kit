@@ -68,7 +68,10 @@ import QtQuick
 //    y=86 and cover 0 after; scrolling a Flickable 300px so the field moved to
 //    y=460 gave 340 tall clamped to y=352, cover 40, before, and 186 tall at
 //    y=506 with the 6px gap after. A list that cannot show all its rows must
-//    scroll, never overflow and never cover its anchor.
+//    scroll, never overflow and never cover its anchor. The one flyout that
+//    passes no room is a context menu (UMenuButton with an `anchorItem`): its
+//    anchor is the pointer, not a control, so covering it costs nothing and
+//    showing every row is worth more.
 //
 // 4. WHICH SIDE, AND WHEN IT MAY CHANGE, IS OURS. Qt has no flip for a plain
 //    Popup - measured, it only ever moves and clamps, so a list on a bottom

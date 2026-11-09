@@ -10,8 +10,11 @@ Rectangle {
     property string text: ""
     property string icon: ""            // legacy emoji/text glyph (fallback)
     property string iconName: ""        // themed icon name (preferred)
-    property string variant: "filled"   // filled | tonal | ghost | danger
+    property string variant: "filled"   // filled | tonal | outline | ghost | danger
     property bool compact: false
+    // The pill is the default; a toolbar of square-cornered buttons (the
+    // editor header) passes its own radius.
+    property real cornerRadius: height / 2
     // Spoken name. Icon-only buttons (text === "") have no visible label, so
     // the caller supplies one here; otherwise the visible text IS the name.
     property string accessibleName: ""
@@ -31,6 +34,7 @@ Rectangle {
     readonly property bool _hovered: mouse.containsMouse && !mouse.pressed
     readonly property color _base: variant === "danger" ? Theme.danger
                                   : variant === "tonal" ? Theme.tertiary
+                                  : variant === "outline" ? Theme.surface
                                   : Theme.accent
     readonly property color _bg: variant === "ghost"
                                  ? (_hovered ? Theme.alpha(Theme.accent, 0.14) : "transparent")
@@ -38,12 +42,12 @@ Rectangle {
 
     implicitWidth: Math.ceil(row.implicitWidth) + (compact ? 28 : 40)
     implicitHeight: compact ? 34 : 42
-    radius: height / 2
+    radius: cornerRadius
     opacity: root.enabled ? 1.0 : 0.4
 
     color: _bg
-    border.width: variant === "ghost" || variant === "tonal" ? 1 : 0
-    border.color: Theme.divider
+    border.width: variant === "ghost" || variant === "tonal" || variant === "outline" ? 1 : 0
+    border.color: variant === "outline" ? Theme.alpha(Theme.accent, 0.14) : Theme.divider
 
     layer.enabled: variant === "filled" || variant === "danger"
     layer.effect: MultiEffect {
@@ -66,7 +70,7 @@ Rectangle {
             visible: root.iconName !== ""
             name: root.iconName
             color: root._fg
-            size: root.compact ? 16 : 18
+            size: root.variant === "outline" ? 15 : root.compact ? 16 : 18
             anchors.verticalCenter: parent.verticalCenter
         }
         Text {
@@ -80,7 +84,7 @@ Rectangle {
             visible: root.text !== ""
             text: root.text
             font.pixelSize: compact ? Theme.fontS + 1 : Theme.fontM
-            font.weight: Font.DemiBold
+            font.weight: root.variant === "outline" ? Font.Medium : Font.DemiBold
             anchors.verticalCenter: parent.verticalCenter
             color: root._fg
         }

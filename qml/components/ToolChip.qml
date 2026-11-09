@@ -9,6 +9,14 @@ Rectangle {
     property string iconStyle: ""   // "", "custom" or "system" (editor tools)
     property string label: ""
     property int iconSize: 18
+    // Shown as a key chip in the hover tip; the spoken name gets it as "(P)".
+    property string shortcut: ""
+    property alias tipPlacement: hoverTip.placement
+    property color hoverColor: Theme.alpha(Theme.accent, 0.18)
+    // The glyph's colour while not active (Delete wears danger).
+    property color iconColor: Theme.textPrimary
+    // A corner mark: the chip opens a group of tools rather than being one.
+    property bool grouped: false
     // TOGGLE or COMMAND, and this property is what tells them apart. A toggle
     // chip (a tool, a mode, bold/italic, fill on/off) binds `active` and its
     // pressed-in look IS a state; a command chip (Undo, Redo, Delete shape,
@@ -31,7 +39,7 @@ Rectangle {
     radius: Theme.radiusM
     opacity: root.enabled ? 1 : 0.35
     color: active ? Theme.accent
-         : mouse.containsMouse ? Theme.alpha(Theme.accent, 0.18)
+         : mouse.containsMouse ? root.hoverColor
          : "transparent"
     Behavior on color { ColorAnimation { duration: Theme.animFast } }
     scale: mouse.pressed ? 0.9 : 1.0
@@ -42,7 +50,7 @@ Rectangle {
         anchors.centerIn: parent
         name: root.iconName
         iconStyle: root.iconStyle
-        color: root.active ? Theme.textOnAccent : Theme.textPrimary
+        color: root.active ? Theme.textOnAccent : root.iconColor
         size: root.iconSize
     }
     Text {
@@ -50,12 +58,31 @@ Rectangle {
         anchors.centerIn: parent
         text: root.icon
         font.pixelSize: 17
-        color: root.active ? Theme.textOnAccent : Theme.textPrimary
+        color: root.active ? Theme.textOnAccent : root.iconColor
+    }
+
+    Item {
+        visible: root.grouped
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        anchors.margins: 6
+        width: 4; height: 4
+        clip: true
+        // A square turned 45 degrees around the corner, clipped to its
+        // inner half: the triangle that points into the corner.
+        Rectangle {
+            x: 4 - width / 2; y: 4 - height / 2
+            width: 5.66; height: 5.66
+            rotation: 45
+            color: root.active ? Theme.textOnAccent : Theme.textSecondary
+        }
     }
 
     UHoverTip {
+        id: hoverTip
         anchor: root
         text: root.label
+        shortcut: root.shortcut
         show: mouse.containsMouse
     }
 
@@ -81,7 +108,8 @@ Rectangle {
     Keys.onEnterPressed: (e) => UKeys.activate(e, root._activate)
 
     Accessible.role: Accessible.Button
-    Accessible.name: accessibleName !== "" ? accessibleName : label
+    Accessible.name: accessibleName !== "" ? accessibleName
+                   : shortcut !== "" ? label + " (" + shortcut + ")" : label
     Accessible.description: accessibleDescription
     Accessible.focusable: root.activeFocusOnTab
     // Only a chip that actually toggles carries the pair; see `active` above.

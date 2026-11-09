@@ -25,6 +25,12 @@ Item {
     property int delayMs: 320
     // Long hints wrap instead of running off the window.
     property int maxWidth: 320
+    // A key chip after the text, for a control whose shortcut is worth
+    // reading at a glance (the editor's tools) rather than inside "(P)".
+    property string shortcut: ""
+    // "auto": above the anchor, below it near the window's top edge. "right":
+    // beside it, for a vertical rail whose neighbours sit above and below.
+    property string placement: "auto"
 
     parent: C.Overlay.overlay
     enabled: false // purely visual — never intercepts the anchor's hover
@@ -61,28 +67,33 @@ Item {
     readonly property point _a: (show && anchor && parent)
         ? anchor.mapToItem(parent, 0, 0) : Qt.point(0, 0)
     readonly property bool _above: _a.y > height + 10
+    readonly property bool _right: placement === "right"
 
     // Centred on the anchor, then kept on screen. This is not a Popup, so it
     // gets no positioner and no `margins` - it clamps through the same UFlyout
     // rule by hand, in its own bindings (which re-run on every dependency, so
     // there is nothing stale to re-place).
     x: (!anchor || !parent) ? 0
-        : UFlyout.clampX(parent, _a.x + (anchor.width - width) / 2, width)
+        : UFlyout.clampX(parent, _right ? _a.x + anchor.width + 8
+                                        : _a.x + (anchor.width - width) / 2, width)
     // Above the anchor, or below it when the top edge is too close - clamped
     // either way, so a tip on a control at the very bottom cannot hang out.
     y: (!anchor || !parent) ? 0
-        : UFlyout.clampY(parent, _above ? _a.y - height - 8 : _a.y + anchor.height + 8,
+        : UFlyout.clampY(parent, _right ? _a.y + (anchor.height - height) / 2
+                                 : _above ? _a.y - height - 8 : _a.y + anchor.height + 8,
                          height)
     // A few pixels of travel on the way in, from the direction it opens.
     transform: Translate {
-        y: tip._wanted ? 0 : (tip._above ? 4 : -4)
+        x: tip._wanted || !tip._right ? 0 : -4
+        y: tip._wanted || tip._right ? 0 : (tip._above ? 4 : -4)
+        Behavior on x { NumberAnimation { duration: 110; easing.type: Easing.OutCubic } }
         Behavior on y { NumberAnimation { duration: 110; easing.type: Easing.OutCubic } }
     }
 
     Rectangle {
         id: bg
-        implicitWidth: tipLabel.width + 20
-        implicitHeight: tipLabel.implicitHeight + 12
+        implicitWidth: tipRow.width + (tip.shortcut !== "" ? 15 : 20)
+        implicitHeight: Math.max(tipLabel.implicitHeight + 12, tip.shortcut !== "" ? 26 : 0)
         radius: Theme.radiusS
         color: Theme.tooltipBg
         border.width: 1
@@ -96,15 +107,39 @@ Item {
             shadowOpacity: 0.45
         }
 
-        Text {
-            id: tipLabel
-            anchors.centerIn: parent
-            width: Math.min(implicitWidth, tip.maxWidth)
-            text: tip.text
-            color: Theme.tooltipText
-            font.pixelSize: Theme.fontS
-            wrapMode: Text.WordWrap
-            horizontalAlignment: lineCount > 1 ? Text.AlignLeft : Text.AlignHCenter
+        Row {
+            id: tipRow
+            x: 10
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: 8
+            Text {
+                id: tipLabel
+                anchors.verticalCenter: parent.verticalCenter
+                width: Math.min(implicitWidth, tip.maxWidth)
+                text: tip.text
+                color: Theme.tooltipText
+                font.pixelSize: Theme.fontS
+                wrapMode: Text.WordWrap
+                horizontalAlignment: lineCount > 1 ? Text.AlignLeft : Text.AlignHCenter
+            }
+            Rectangle {
+                visible: tip.shortcut !== ""
+                anchors.verticalCenter: parent.verticalCenter
+                width: Math.max(20, keyText.implicitWidth + 10)
+                height: 20
+                radius: 4
+                color: Theme.alpha(Theme.tooltipText, 0.10)
+                border.width: 1
+                border.color: Theme.alpha(Theme.tooltipText, 0.18)
+                Text {
+                    id: keyText
+                    anchors.centerIn: parent
+                    text: tip.shortcut
+                    color: Theme.tooltipText
+                    font.family: "monospace"
+                    font.pixelSize: 11
+                }
+            }
         }
     }
 }
