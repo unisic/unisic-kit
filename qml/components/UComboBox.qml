@@ -366,6 +366,7 @@ Rectangle {
                 // leave less than the search field's own height.
                 height: Math.max(0, popup.height - 12 - popup.searchH)
                 clip: true
+                WheelBoost { flickable: list }
                 model: root._entries
                 boundsBehavior: Flickable.StopAtBounds
                 delegate: Rectangle {

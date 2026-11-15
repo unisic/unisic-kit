@@ -357,6 +357,7 @@ Rectangle {
                 // leave less than the custom field's own height.
                 height: Math.max(0, popup.height - 12 - popup.customH)
                 clip: true
+                WheelBoost { flickable: list }
                 model: root.values
                 boundsBehavior: Flickable.StopAtBounds
                 delegate: Rectangle {

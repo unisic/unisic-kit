@@ -334,6 +334,7 @@ Rectangle {
             // which closes the menu.
             interactive: contentHeight > height
             boundsBehavior: Flickable.StopAtBounds
+            WheelBoost { flickable: menuFlick }
 
             Column {
                 id: col
