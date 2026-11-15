@@ -92,7 +92,7 @@ Popup {
         // On the contentItem, not on the Popup: the Accessible attached type
         // only binds to an Item, and a Popup is not one.
         Accessible.role: Accessible.ColorChooser
-        Accessible.name: qsTr("Colour picker")
+        Accessible.name: qsTr("Color picker")
 
         Flickable {
             id: pickerFlick
@@ -361,7 +361,7 @@ Popup {
                         iconName: "color-picker"; iconSize: 16
                         width: 34; height: 34
                         anchors.verticalCenter: parent.verticalCenter
-                        tooltip: qsTr("Pick a colour from the screen")
+                        tooltip: qsTr("Pick a color from the screen")
                         onClicked: { root.close(); root.requestScreenPick() }
                     }
                     Rectangle {
