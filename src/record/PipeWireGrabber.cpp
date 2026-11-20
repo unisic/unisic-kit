@@ -189,7 +189,7 @@ bool PipeWireGrabber::start(int pipewireFd, uint nodeId, int maxFps, bool wantCu
     }
     pw_stream_add_listener(m_stream, &ev->hook, &ev->events, ev);
 
-    uint8_t buffer[1024];
+    uint8_t buffer[2048];
     spa_pod_builder b = SPA_POD_BUILDER_INIT(buffer, sizeof(buffer));
     const spa_rectangle defSize = SPA_RECTANGLE(1920, 1080);
     const spa_rectangle minSize = SPA_RECTANGLE(1, 1);
@@ -204,21 +204,30 @@ bool PipeWireGrabber::start(int pipewireFd, uint nodeId, int maxFps, bool wantCu
     const spa_fraction defRate = SPA_FRACTION(cappedFps, 1);
     const spa_fraction minRate = SPA_FRACTION(0, 1);
     const spa_fraction maxRate = SPA_FRACTION(cappedFps, 1);
-    const spa_pod *params[1];
-    params[0] = static_cast<const spa_pod *>(spa_pod_builder_add_object(&b,
-        SPA_TYPE_OBJECT_Format, SPA_PARAM_EnumFormat,
-        SPA_FORMAT_mediaType, SPA_POD_Id(SPA_MEDIA_TYPE_video),
-        SPA_FORMAT_mediaSubtype, SPA_POD_Id(SPA_MEDIA_SUBTYPE_raw),
-        SPA_FORMAT_VIDEO_format, SPA_POD_CHOICE_ENUM_Id(5,
-            SPA_VIDEO_FORMAT_BGRx, SPA_VIDEO_FORMAT_BGRx, SPA_VIDEO_FORMAT_BGRA,
-            SPA_VIDEO_FORMAT_RGBx, SPA_VIDEO_FORMAT_RGBA),
-        SPA_FORMAT_VIDEO_size, SPA_POD_CHOICE_RANGE_Rectangle(&defSize, &minSize, &maxSize),
-        SPA_FORMAT_VIDEO_framerate, SPA_POD_CHOICE_RANGE_Fraction(&defRate, &minRate, &maxRate)));
+    // Second, uncapped offer: a producer that only advertises ONE fixed rate
+    // above the cap never intersects the capped range, and negotiation fails
+    // with "no more output formats" before a single frame. xdg-desktop-portal-
+    // cosmic is that producer (a fixed 60/1, "TODO max framerate"), so every
+    // recording on COSMIC died at 15/30 fps. PipeWire tries the params in
+    // order, so the capped one still wins wherever a range is offered.
+    const spa_fraction anyMaxRate = SPA_FRACTION(1000, 1);
+    auto videoFormat = [&](const spa_fraction *max) {
+        return static_cast<const spa_pod *>(spa_pod_builder_add_object(&b,
+            SPA_TYPE_OBJECT_Format, SPA_PARAM_EnumFormat,
+            SPA_FORMAT_mediaType, SPA_POD_Id(SPA_MEDIA_TYPE_video),
+            SPA_FORMAT_mediaSubtype, SPA_POD_Id(SPA_MEDIA_SUBTYPE_raw),
+            SPA_FORMAT_VIDEO_format, SPA_POD_CHOICE_ENUM_Id(5,
+                SPA_VIDEO_FORMAT_BGRx, SPA_VIDEO_FORMAT_BGRx, SPA_VIDEO_FORMAT_BGRA,
+                SPA_VIDEO_FORMAT_RGBx, SPA_VIDEO_FORMAT_RGBA),
+            SPA_FORMAT_VIDEO_size, SPA_POD_CHOICE_RANGE_Rectangle(&defSize, &minSize, &maxSize),
+            SPA_FORMAT_VIDEO_framerate, SPA_POD_CHOICE_RANGE_Fraction(&defRate, &minRate, max)));
+    };
+    const spa_pod *params[2] = { videoFormat(&maxRate), videoFormat(&anyMaxRate) };
 
     int res = pw_stream_connect(m_stream, PW_DIRECTION_INPUT, nodeId,
                                 static_cast<pw_stream_flags>(PW_STREAM_FLAG_AUTOCONNECT |
                                                              PW_STREAM_FLAG_MAP_BUFFERS),
-                                params, 1);
+                                params, 2);
     pw_thread_loop_unlock(m_loop);
     if (pipewireFd >= 0)
         close(pipewireFd);
