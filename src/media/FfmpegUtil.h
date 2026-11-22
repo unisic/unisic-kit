@@ -29,6 +29,13 @@ bool encoderUsable(const QString &name);
 // when the probe itself failed.
 bool supportsShortestBufDuration();
 
+// "-thread_queue_size N" for an INPUT, or nothing where ffmpeg refuses it there.
+// ffmpeg 9.1 made the option output-only (the muxer queue): put before an -i it
+// is an error, every recording failed with EINVAL (-22). There the demuxer
+// queue is fixed at 2 packets, so leaving it out is the bounded behaviour.
+// Cached and thread-safe like encoders().
+QStringList inputThreadQueueSize(int packets);
+
 // Whether a hardware encoder is LISTED as usable now: "vaapi" needs h264_vaapi
 // AND a render node at /dev/dri/renderD128; "nvenc" needs h264_nvenc;
 // "av1-nvenc" (RTX 40+) needs av1_nvenc — the only hardware encoder a WebM can

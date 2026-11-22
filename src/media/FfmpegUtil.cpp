@@ -69,6 +69,37 @@ bool supportsShortestBufDuration()
     return cached;
 }
 
+// Asks ffmpeg rather than its help text or version: one ~50 ms run on a
+// two-frame null source. Only ffmpeg's own "input option on an output" error
+// counts as a no, so a build without lavfi (any other failure) keeps the
+// option, which every ffmpeg before 9.1 accepts.
+static bool probeInputThreadQueueSize()
+{
+    QProcess p;
+    p.setProcessChannelMode(QProcess::MergedChannels);
+    p.start(QStringLiteral("ffmpeg"),
+            {QStringLiteral("-hide_banner"), QStringLiteral("-nostdin"),
+             QStringLiteral("-loglevel"), QStringLiteral("error"),
+             QStringLiteral("-thread_queue_size"), QStringLiteral("2"),
+             QStringLiteral("-f"), QStringLiteral("lavfi"),
+             QStringLiteral("-i"), QStringLiteral("nullsrc=s=16x16:d=0.08"),
+             QStringLiteral("-f"), QStringLiteral("null"), QStringLiteral("-")});
+    if (!p.waitForFinished(5000)) {
+        p.kill();
+        p.waitForFinished(1000);
+        return true;
+    }
+    return !p.readAll().contains("cannot be applied to input");
+}
+
+QStringList inputThreadQueueSize(int packets)
+{
+    static const bool accepted = probeInputThreadQueueSize();
+    if (!accepted)
+        return {};
+    return {QStringLiteral("-thread_queue_size"), QString::number(packets)};
+}
+
 QString gifPaletteGenFilter(int quality)
 {
     const int q = qBound(0, quality, 2);
