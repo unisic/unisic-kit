@@ -211,18 +211,28 @@ bool PipeWireGrabber::start(int pipewireFd, uint nodeId, int maxFps, bool wantCu
     // recording on COSMIC died at 15/30 fps. PipeWire tries the params in
     // order, so the capped one still wins wherever a range is offered.
     const spa_fraction anyMaxRate = SPA_FRACTION(1000, 1);
-    auto videoFormat = [&](const spa_fraction *max) {
-        return static_cast<const spa_pod *>(spa_pod_builder_add_object(&b,
-            SPA_TYPE_OBJECT_Format, SPA_PARAM_EnumFormat,
+    // The framerate range alone caps nothing on KWin: it streams variable
+    // rate (framerate 0/1) and reads the cap from maxFramerate, so without
+    // one it picked the monitor's 144/1 (seen in pw-dump while the replay
+    // ring sampled 45 fps) and this thread copied every one of those frames.
+    // Only the capped offer names it; the uncapped one stays as it was.
+    auto videoFormat = [&](const spa_fraction *max, bool capMax) {
+        spa_pod_frame f;
+        spa_pod_builder_push_object(&b, &f, SPA_TYPE_OBJECT_Format, SPA_PARAM_EnumFormat);
+        spa_pod_builder_add(&b,
             SPA_FORMAT_mediaType, SPA_POD_Id(SPA_MEDIA_TYPE_video),
             SPA_FORMAT_mediaSubtype, SPA_POD_Id(SPA_MEDIA_SUBTYPE_raw),
             SPA_FORMAT_VIDEO_format, SPA_POD_CHOICE_ENUM_Id(5,
                 SPA_VIDEO_FORMAT_BGRx, SPA_VIDEO_FORMAT_BGRx, SPA_VIDEO_FORMAT_BGRA,
                 SPA_VIDEO_FORMAT_RGBx, SPA_VIDEO_FORMAT_RGBA),
             SPA_FORMAT_VIDEO_size, SPA_POD_CHOICE_RANGE_Rectangle(&defSize, &minSize, &maxSize),
-            SPA_FORMAT_VIDEO_framerate, SPA_POD_CHOICE_RANGE_Fraction(&defRate, &minRate, max)));
+            SPA_FORMAT_VIDEO_framerate, SPA_POD_CHOICE_RANGE_Fraction(&defRate, &minRate, max), 0);
+        if (capMax)
+            spa_pod_builder_add(&b,
+                SPA_FORMAT_VIDEO_maxFramerate, SPA_POD_CHOICE_RANGE_Fraction(&defRate, &minRate, max), 0);
+        return static_cast<const spa_pod *>(spa_pod_builder_pop(&b, &f));
     };
-    const spa_pod *params[2] = { videoFormat(&maxRate), videoFormat(&anyMaxRate) };
+    const spa_pod *params[2] = { videoFormat(&maxRate, true), videoFormat(&anyMaxRate, false) };
 
     int res = pw_stream_connect(m_stream, PW_DIRECTION_INPUT, nodeId,
                                 static_cast<pw_stream_flags>(PW_STREAM_FLAG_AUTOCONNECT |
