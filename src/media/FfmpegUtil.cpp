@@ -193,6 +193,12 @@ bool hardwareEncoderAvailable(const QString &id)
     // AV1 NVENC (RTX 40+) — the only hardware encoder a WebM can carry here.
     if (id == QLatin1String("av1-nvenc"))
         return encoders().contains(QStringLiteral("av1_nvenc"));
+    // AMD AMF and Intel Quick Sync, the instant replay ring's hardware paths
+    // on Windows (and on a Linux box where VAAPI does not encode).
+    if (id == QLatin1String("amf"))
+        return encoders().contains(QStringLiteral("h264_amf"));
+    if (id == QLatin1String("qsv"))
+        return encoders().contains(QStringLiteral("h264_qsv"));
     return false;
 }
 
@@ -224,6 +230,15 @@ bool hardwareEncoderWorks(const QString &id)
              << QStringLiteral("-i") << QStringLiteral("testsrc2=size=320x240:rate=30:duration=0.1")
              << QStringLiteral("-vf") << QStringLiteral("format=nv12,hwupload")
              << QStringLiteral("-c:v") << QStringLiteral("h264_vaapi");
+    } else if (id == QLatin1String("amf") || id == QLatin1String("qsv")) {
+        // The input format the replay ring feeds each one: AMF converts the
+        // capture's BGRx itself, Quick Sync takes NV12 only.
+        args << QStringLiteral("-f") << QStringLiteral("lavfi")
+             << QStringLiteral("-i") << QStringLiteral("testsrc2=size=320x240:rate=30:duration=0.1")
+             << QStringLiteral("-pix_fmt")
+             << (id == QLatin1String("amf") ? QStringLiteral("bgr0") : QStringLiteral("nv12"))
+             << QStringLiteral("-c:v")
+             << (id == QLatin1String("amf") ? QStringLiteral("h264_amf") : QStringLiteral("h264_qsv"));
     } else {
         args << QStringLiteral("-f") << QStringLiteral("lavfi")
              << QStringLiteral("-i") << QStringLiteral("testsrc2=size=320x240:rate=30:duration=0.1")

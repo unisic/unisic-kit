@@ -39,7 +39,7 @@ QStringList inputThreadQueueSize(int packets);
 // Whether a hardware encoder is LISTED as usable now: "vaapi" needs h264_vaapi
 // AND a render node at /dev/dri/renderD128; "nvenc" needs h264_nvenc;
 // "av1-nvenc" (RTX 40+) needs av1_nvenc — the only hardware encoder a WebM can
-// carry here.
+// carry here; "amf" needs h264_amf and "qsv" h264_qsv (AMD and Intel H.264).
 bool hardwareEncoderAvailable(const QString &id);
 
 // Does the encoder actually ENCODE, not just appear in -encoders? Measured
